@@ -232,11 +232,11 @@ See [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/C
 `sais` is designed to be easy for coding agents (Claude Code, Codex, Cursor,
 VS Code agents, ...) to drive: stable exit codes, a machine-readable
 `summary.json` (always written), and `--json` for a single-line JSON summary
-on stdout. See [AGENTS.md](./AGENTS.md) for the agent-facing contract.
+on stdout. See [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) for the agent-facing contract.
 
 ### Claude Code skill
 
-[`skills/sais-scan/SKILL.md`](./skills/sais-scan/SKILL.md) is a ready-made
+[`skills/sais-scan/SKILL.md`](https://github.com/elvezjp/security-ai-scanner/blob/main/skills/sais-scan/SKILL.md) is a ready-made
 skill for Claude Code and compatible agents. Copy it into your skills
 directory (e.g. `.claude/skills/sais-scan/`) and ask for a security scan —
 the agent runs `sais`, reads the JSON summary, and reports findings as

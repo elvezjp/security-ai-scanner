@@ -231,11 +231,11 @@ uv sync
 `sais` はコーディングエージェント（Claude Code・Codex・Cursor・VS Code の
 エージェント等）から扱いやすいよう設計されています：安定した終了コード、
 常に書き出される `summary.json`、stdout に1行 JSON を返す `--json`。
-エージェント向けの契約は [AGENTS.md](./AGENTS.md) を参照してください。
+エージェント向けの契約は [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) を参照してください。
 
 ### Claude Code スキル
 
-[`skills/sais-scan/SKILL.md`](./skills/sais-scan/SKILL.md) は Claude Code
+[`skills/sais-scan/SKILL.md`](https://github.com/elvezjp/security-ai-scanner/blob/main/skills/sais-scan/SKILL.md) は Claude Code
 （および互換エージェント）向けのスキルです。スキルディレクトリ（例：
 `.claude/skills/sais-scan/`）にコピーして「セキュリティスキャンして」と
 頼むと、エージェントが `sais` を実行し、JSON サマリを読んで所見を
