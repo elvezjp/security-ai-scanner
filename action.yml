@@ -1,0 +1,93 @@
+name: 'security-ai-scanner'
+description: >-
+  AI-powered security scan of a repository. Writes SARIF (for GitHub Code
+  Scanning), JSON findings, a Markdown report, and a machine-readable
+  summary.json.
+author: 'Elvez, Inc.'
+branding:
+  icon: 'shield'
+  color: 'blue'
+
+inputs:
+  target:
+    description: 'Directory to scan'
+    default: '.'
+  anthropic-api-key:
+    description: 'Anthropic API key used by the scan agent'
+    required: true
+  fail-on:
+    description: 'Gate threshold: critical/high/medium/low/info/none'
+    default: 'high'
+  language:
+    description: 'Language for findings and report (en/ja)'
+    default: 'en'
+  output-dir:
+    description: 'Directory for scan outputs'
+    default: 'security-scan-results'
+  version:
+    description: >-
+      security-ai-scanner version to install (empty = latest). Pin a
+      specific version (e.g. "0.2.0") for reproducible CI runs: pinning
+      the action tag alone does not pin the scanner itself.
+    default: ''
+  extra-args:
+    description: 'Extra arguments appended to the sais scan command'
+    default: ''
+
+outputs:
+  sarif-file:
+    description: 'Path to the SARIF file (for codeql-action/upload-sarif)'
+    value: ${{ steps.scan.outputs.sarif-file }}
+  summary-file:
+    description: 'Path to summary.json'
+    value: ${{ steps.scan.outputs.summary-file }}
+  exit-code:
+    description: 'Scan exit code (0 clean, 1 gate failed, 2 error)'
+    value: ${{ steps.scan.outputs.exit-code }}
+
+runs:
+  using: 'composite'
+  steps:
+    # Inputs are passed to the scripts via `env`, never interpolated into
+    # the script source with ${{ }}: an input containing shell
+    # metacharacters must stay data instead of becoming code (CWE-78) —
+    # especially in the step that holds ANTHROPIC_API_KEY.
+    - name: Install security-ai-scanner
+      shell: bash
+      env:
+        SAIS_VERSION: ${{ inputs.version }}
+      run: |
+        if [ -n "$SAIS_VERSION" ]; then
+          python3 -m pip install --quiet "security-ai-scanner==$SAIS_VERSION"
+        else
+          python3 -m pip install --quiet security-ai-scanner
+        fi
+
+    - name: Run scan
+      id: scan
+      shell: bash
+      env:
+        ANTHROPIC_API_KEY: ${{ inputs.anthropic-api-key }}
+        SAIS_TARGET: ${{ inputs.target }}
+        SAIS_OUTPUT_DIR: ${{ inputs.output-dir }}
+        SAIS_FAIL_ON: ${{ inputs.fail-on }}
+        SAIS_LANGUAGE: ${{ inputs.language }}
+        SAIS_EXTRA_ARGS: ${{ inputs.extra-args }}
+      run: |
+        # Whitespace-split extra-args into an argument array; `read`
+        # performs no command substitution or glob expansion.
+        read -r -a extra_args <<< "$SAIS_EXTRA_ARGS"
+        set +e
+        sais scan "$SAIS_TARGET" \
+          -o "$SAIS_OUTPUT_DIR" \
+          --fail-on "$SAIS_FAIL_ON" \
+          --language "$SAIS_LANGUAGE" \
+          --json "${extra_args[@]}"
+        code=$?
+        set -e
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        echo "sarif-file=$SAIS_OUTPUT_DIR/findings.sarif" >> "$GITHUB_OUTPUT"
+        echo "summary-file=$SAIS_OUTPUT_DIR/summary.json" >> "$GITHUB_OUTPUT"
+        # 2 = the scan itself failed; 1 = gate failed, let the caller decide
+        # via fail-on (a gate failure still fails this step).
+        exit $code

@@ -1,0 +1,98 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "security-ai-scanner"
+version = "0.2.0"
+description = "AI-powered security scanner for source code, driven by agentic LLM analysis with SARIF output"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Elvez", email = "info@elvez.co.jp"}
+]
+keywords = ["security", "scanner", "ai", "llm", "sarif", "vulnerability", "appsec", "code-review"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+    "Topic :: Security",
+    "Topic :: Software Development :: Quality Assurance",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "claude-agent-sdk>=0.2.0",
+]
+
+[project.urls]
+Homepage = "https://github.com/elvezjp/security-ai-scanner"
+Repository = "https://github.com/elvezjp/security-ai-scanner"
+Issues = "https://github.com/elvezjp/security-ai-scanner/issues"
+
+[project.scripts]
+security-ai-scanner = "security_ai_scanner.cli:main"
+sais = "security_ai_scanner.cli:main"
+
+[project.optional-dependencies]
+mcp = [
+    # The server uses the v1 API (mcp.server.fastmcp), which MCP 2.x
+    # removed — an unpinned install would resolve 2.x and break `sais mcp`.
+    "mcp>=1.2.0,<2",
+]
+test = [
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "mcp>=1.2.0",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["security_ai_scanner"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "security_ai_scanner/**",
+    "README.md",
+    "README_ja.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "CHANGELOG_ja.md",
+    "CONTRIBUTING.md",
+    "CONTRIBUTING_ja.md",
+    "SECURITY.md",
+    "SECURITY_ja.md",
+    "pyproject.toml",
+]
+exclude = [
+    "docs/**",
+    "tests/**",
+    "spec*.md",
+]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = "-v --tb=short"
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests (require Claude access)",
+]
+
+[tool.coverage.run]
+source = ["security_ai_scanner"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+]

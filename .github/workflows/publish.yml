@@ -1,0 +1,88 @@
+name: Publish to PyPI
+
+# tag v* の push をトリガーに、PyPI に sdist と wheel を公開する。
+# API トークン不要、Trusted Publisher (OIDC) で認証する。
+#
+# 事前準備 (管理者作業):
+#   1. PyPI 側で elvezjp/security-ai-scanner と本 workflow を Trusted Publisher
+#      として登録 (https://pypi.org/manage/account/publishing/)
+#   2. GitHub リポ Settings → Environments → "pypi" を作成
+#      (保護ルール: main ブランチ + 特定承認者を推奨)
+#
+# リリース手順:
+#   git tag vX.Y.Z
+#   git push origin vX.Y.Z
+#   → 本 workflow が起動し、pyproject.toml の version に対応する配布物を公開する
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  # 公開前の防護壁として、テスト全件パスを必須にする。
+  # ci.yml は push/PR でしか走らないので、tag push 経路ではここで明示実行する。
+  test:
+    name: Run tests before publish
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Run tests
+        run: uv run pytest
+
+  build:
+    name: Build distribution
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Build sdist and wheel
+        run: uv build
+      # タグと pyproject.toml の version がずれた配布物を公開しない。
+      - name: Verify tag matches package version
+        run: |
+          TAG="${GITHUB_REF_NAME#v}"
+          VER="$(grep -m1 '^version = ' pyproject.toml | cut -d'"' -f2)"
+          if [ "$TAG" != "$VER" ]; then
+            echo "tag v$TAG does not match pyproject version $VER" >&2
+            exit 1
+          fi
+          echo "tag and version agree: $VER"
+      - name: Upload distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/security-ai-scanner
+    permissions:
+      id-token: write # Trusted Publisher (OIDC) のために必要
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1

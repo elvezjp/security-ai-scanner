@@ -1,0 +1,62 @@
+name: Publish to TestPyPI
+
+# 手動実行で TestPyPI に配布物を公開し、本番リリース前に公開経路を検証する。
+# 認証は Trusted Publisher (OIDC)。
+#
+# 事前準備 (管理者作業):
+#   1. TestPyPI 側で elvezjp/security-ai-scanner と本 workflow を Trusted
+#      Publisher として登録 (https://test.pypi.org/manage/account/publishing/)
+#   2. GitHub リポ Settings → Environments → "testpypi" を作成
+#
+# 動作確認:
+#   pip install --index-url https://test.pypi.org/simple/ \
+#     --extra-index-url https://pypi.org/simple/ security-ai-scanner
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install dependencies
+        run: uv sync --all-extras
+      - name: Run tests
+        run: uv run pytest
+      - name: Build sdist and wheel
+        run: uv build
+      - name: Upload distributions
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: python-package-distributions
+          path: dist/
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/security-ai-scanner
+    permissions:
+      id-token: write # Trusted Publisher (OIDC) のために必要
+    steps:
+      - name: Download distributions
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: python-package-distributions
+          path: dist/
+      - name: Publish to TestPyPI
+        uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # release/v1
+        with:
+          repository-url: https://test.pypi.org/legacy/

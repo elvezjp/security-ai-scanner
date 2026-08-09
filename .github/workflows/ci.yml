@@ -1,0 +1,56 @@
+name: CI
+
+# Actions は可変タグではなくコミット SHA で固定する。
+# タグは同じ名前のまま別のコミットを指し得るため、CI が予告なく別のコードを
+# 実行する余地を残さない（CWE-829）。更新は dependabot が PR で提案する。
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test (${{ matrix.os }}, Python ${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.11", "3.14"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install dependencies
+        run: uv sync --all-extras
+      # テストはモックエンジンを使うため、AI バックエンドへの接続も
+      # 認証情報も不要。CI がネットワークや課金に依存しないことを保つ。
+      - name: Run tests
+        run: uv run pytest
+
+  build:
+    name: Build distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install uv
+        uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Build sdist and wheel
+        run: uv build
+      # スキャン手法のプロンプトはパッケージデータとして同梱される。
+      # 欠けると実行時に初めて壊れるため、成果物に含まれることを検証する。
+      - name: Verify prompts are packaged
+        run: |
+          python -m zipfile -l dist/*.whl | grep -q "prompts/security_scan.md"
+          echo "prompt template is packaged"

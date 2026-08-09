@@ -1,0 +1,18 @@
+version: 2
+
+# Actions を SHA で固定しているため、更新は自動追従されない。
+# dependabot に PR を出させて、更新を明示的なレビュー対象にする。
+updates:
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "ci"
+
+  - package-ecosystem: uv
+    directory: "/"
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: "deps"

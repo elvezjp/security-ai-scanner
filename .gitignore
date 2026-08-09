@@ -1,0 +1,21 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.venv/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# uv
+# (uv.lock is committed)
+
+# Editors / OS
+.DS_Store
+.idea/
+.vscode/
+
+# Scan outputs
+security-scan-results/
