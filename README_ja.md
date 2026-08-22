@@ -365,11 +365,33 @@ security-ai-scanner/
 
 ## ロードマップ
 
-計画中の機能です（おおよその順。フィードバックにより変わり得ます）。
+公開スキャナを CI・自社ホスト LLM で実用するための計画です（優先度順。約束ではなく、フィードバックで変わり得ます）。
+対応 Issue には `priority:P0` / `P1` / `P2` と `roadmap` ラベルを付けています。
 
-- **バッチスキャン** — 複数リポジトリの直列スキャンと集計（`batch-summary.json`）。**現時点では未実装**です。当面はシェルループで `sais scan` を繰り返し、各回の `summary.json` を読む形で代替してください
-- **差分スキャン** — PR・コミット範囲に限定したスキャン
-- **トリアージ** — 既存所見の再評価・誤検出フィードバックの学習
+### P0 — 公開 CI・ローカルスキャンでまず使えること
+
+- **パス include/exclude と `.saisignore`** — `node_modules` やビルド成果物などノイズを除外（[#3](https://github.com/elvezjp/security-ai-scanner/issues/3)）
+- **プロジェクト設定ファイル**（`sais.toml` / `.sais.yaml`）— モデル・エンドポイント・fail-on・言語・スコープを固定（[#4](https://github.com/elvezjp/security-ai-scanner/issues/4)）
+- **差分スキャン** — PR・コミット範囲に限定（[#5](https://github.com/elvezjp/security-ai-scanner/issues/5)）
+- **ベースライン・抑止・安定した所見 ID** — 反復する誤検出で毎回 CI が落ちないようにする（[#6](https://github.com/elvezjp/security-ai-scanner/issues/6)）
+
+### P1 — 汎用プロダクトとしての厚み
+
+- **第2エンジン** — Claude 以外のアダプタでエンジン非依存コアを実証（[#7](https://github.com/elvezjp/security-ai-scanner/issues/7)）
+- **スキャンプロファイル** — 手法プロンプトの差し替え（既定 `security`＋少数の汎用プロファイル。組織固有チェックリストは公開コアにハードコードしない）（[#8](https://github.com/elvezjp/security-ai-scanner/issues/8)）
+- **バッチスキャン** — 複数ルートの直列実行と `batch-summary.json`（当面は `sais scan` のループで各 `summary.json` を読む）（[#9](https://github.com/elvezjp/security-ai-scanner/issues/9)）
+- **ローカル LLM 運用の強化** — コンテキスト枯渇時の明示エラー、単一セッション向け直列の案内（[#10](https://github.com/elvezjp/security-ai-scanner/issues/10)）
+
+### P2 — 信頼と継続利用
+
+- **既知脆弱フィクスチャのベンチ** — ホスト／ローカルの再現可能な recall 比較（[#11](https://github.com/elvezjp/security-ai-scanner/issues/11)）
+- **トリアージ** — 既存所見の再評価・誤検出フィードバック（[#12](https://github.com/elvezjp/security-ai-scanner/issues/12)）
+- **リリース成熟度** — サポートマトリクス、可能な範囲での SBOM、Action のピン留め案内（[#13](https://github.com/elvezjp/security-ai-scanner/issues/13)）
+
+### 公開コアの非目標
+
+- ベンダー／組織固有の「リポジトリ衛生」チェックリスト（docs の食い違い、内部 ADR ルールなど）。プライベートなラッパや `--profile` で外から渡す
+- 汎用コードレビューボット化。プロダクトの焦点は、根拠付きのセキュリティ所見のままにする
 
 ## 更新履歴
 
