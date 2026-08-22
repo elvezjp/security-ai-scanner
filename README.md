@@ -366,11 +366,54 @@ Contributions are welcome! See [CONTRIBUTING.md](https://github.com/elvezjp/secu
 
 ## Roadmap
 
-Planned, in rough order. Scope and timing may change based on feedback.
+Planned work for making the public scanner usable in CI and on self-hosted
+LLMs. Order is priority, not a promise. Scope may change based on feedback.
+Tracked issues use labels `priority:P0` / `P1` / `P2` and `roadmap`.
 
-- **Batch scan** — scan multiple repositories serially with an aggregate summary (`batch-summary.json`). Not implemented yet; today, loop `sais scan` in a shell script and read each run's `summary.json`
+### P0 — usable in public CI and local scans
+
+- **Path include/exclude and `.saisignore`** — keep agents out of
+  `node_modules`, build artifacts, and other noise ([#3](https://github.com/elvezjp/security-ai-scanner/issues/3))
+- **Project config file** (`sais.toml` / `.sais.yaml`) — pin model, endpoint,
+  fail-on, language, and scope without fragile flag soup
+  ([#4](https://github.com/elvezjp/security-ai-scanner/issues/4))
 - **Diff scan** — limit a scan to a PR / commit range
-- **Triage** — re-evaluate existing findings, learn from false-positive feedback
+  ([#5](https://github.com/elvezjp/security-ai-scanner/issues/5))
+- **Baseline, suppressions, and stable finding IDs** — stop recurring false
+  positives from failing every run
+  ([#6](https://github.com/elvezjp/security-ai-scanner/issues/6))
+
+### P1 — generic product depth
+
+- **Second engine backend** — prove the engine-agnostic core with a non-Claude
+  adapter ([#7](https://github.com/elvezjp/security-ai-scanner/issues/7))
+- **Scan profiles** — pluggable methodology prompts (`security` default, plus
+  a small set of generic profiles; org-specific checklists stay outside the
+  public core) ([#8](https://github.com/elvezjp/security-ai-scanner/issues/8))
+- **Batch scan** — multiple roots serially with `batch-summary.json` (today:
+  loop `sais scan` and read each `summary.json`)
+  ([#9](https://github.com/elvezjp/security-ai-scanner/issues/9))
+- **Local LLM operational hardening** — clearer context/scope failures, serial
+  defaults for single-session endpoints
+  ([#10](https://github.com/elvezjp/security-ai-scanner/issues/10))
+
+### P2 — trust and ongoing use
+
+- **Known-vulnerability fixture benchmark** — reproducible recall checks for
+  hosted vs local models
+  ([#11](https://github.com/elvezjp/security-ai-scanner/issues/11))
+- **Triage** — re-evaluate findings and learn from false-positive feedback
+  ([#12](https://github.com/elvezjp/security-ai-scanner/issues/12))
+- **Release maturity** — support matrix, SBOM where practical, pinned Action
+  guidance ([#13](https://github.com/elvezjp/security-ai-scanner/issues/13))
+
+### Non-goals for the public core
+
+- Vendor- or org-specific “repo hygiene” checklists (docs drift, internal ADR
+  rules). Those belong in private wrappers or custom profiles pointed at with
+  `--profile`, not hard-coded into this package
+- Turning the tool into a general-purpose code review bot. The product focus
+  stays security findings with structured evidence
 
 ## Changelog
 
