@@ -40,6 +40,7 @@ human-readable Markdown report.
 - [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING.md) - Contribution guidelines
 - [SECURITY.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY.md) - Security policy and best practices
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - Technical specification (Japanese)
+- [Local LLM E2E verification](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - Measured results for local models on a planted-vulnerability fixture
 
 ## Installation
 
@@ -198,6 +199,8 @@ the security-relevant code is usually one package.
 
 ### What to expect
 
+#### Hosted vs local (measured with the `claude` engine)
+
 We measured this by scanning a repository whose vulnerabilities were
 already known and confirmed by hand:
 
@@ -218,6 +221,31 @@ rather than a ranking you can act on directly.
 A practical split is local for privacy-sensitive screening, hosted for
 release audits and anything where the severity ranking itself drives a
 decision.
+
+#### Model comparison (`openai` engine)
+
+Four live runs against two server implementations, scanning a 4-file
+Flask fixture with four planted vulnerabilities (command injection,
+SQL injection, path traversal, hardcoded key):
+
+| Model (server) | Planted found | False positives | Duration / tokens |
+|---|---|---|---|
+| Muse-Glimmer-30B GGUF (llama.cpp) | 4 / 4 | none | 83 s / 15,310 |
+| qwen3.8:27b (Ollama) | 4 / 4 | none | 131 s / 10,759 |
+| ornith-1.5:35b (Ollama) | 4 / 4 | none | 25 s / 6,887 |
+| qwen2.5-coder:7b (Ollama) | **0 / 4** — cannot drive the tool loop | — | 0.5 s / 1,300 |
+
+Every passing model also flagged the same unplanted real issue
+(`DEBUG = True`) that was not part of the fixture design. **Among
+capable models, detection was uniform; what varied was severity
+calibration and speed.** Model capability — not the server or the
+transport — is the gating factor: prefer roughly 27B-class or larger.
+A model that cannot emit parseable tool calls produces an instant
+"clean" verdict having read nothing, which the engine rejects as an
+error (exit 2) rather than passing it off as a clean scan.
+
+Full method, per-run findings, and failure analysis:
+[docs/local-llm-e2e-verification.md](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md).
 
 > **Note:** if your server processes one request at a time, run scans
 > serially rather than in parallel.

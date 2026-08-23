@@ -40,6 +40,7 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 - [CONTRIBUTING_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING_ja.md) - コントリビューションガイド
 - [SECURITY_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY_ja.md) - セキュリティポリシー
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - 技術仕様書
+- [ローカル LLM E2E 検証記録](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - 脆弱性を仕込んだフィクスチャでのローカルモデル実測結果
 
 ## インストール
 
@@ -197,6 +198,8 @@ sais scan ./repo \
 
 ### 品質の目安
 
+#### ホスト型 vs ローカル（`claude` エンジンでの測定）
+
 脆弱性が既知で、かつ人手で確認済みのリポジトリをスキャンして測定しました。
 
 | | ホスト型 API | ローカルエンドポイント |
@@ -216,6 +219,32 @@ sais scan ./repo \
 実用的な使い分けとしては、**機密性が高いコードのスクリーニングは
 ローカル、リリース前監査や深刻度の順位そのものが判断を左右する場面は
 ホスト型**が現実的です。
+
+#### モデル比較（`openai` エンジン）
+
+2種類のサーバー実装に対する4回の実機スキャン。対象は脆弱性を4件
+（コマンドインジェクション・SQL インジェクション・パストラバーサル・
+ハードコード鍵）仕込んだ4ファイルの Flask フィクスチャです。
+
+| モデル（サーバー） | 仕込んだ脆弱性の検出 | 誤検出 | 時間 / トークン |
+|---|---|---|---|
+| Muse-Glimmer-30B GGUF（llama.cpp） | 4 / 4 | なし | 83秒 / 15,310 |
+| qwen3.8:27b（Ollama） | 4 / 4 | なし | 131秒 / 10,759 |
+| ornith-1.5:35b（Ollama） | 4 / 4 | なし | 25秒 / 6,887 |
+| qwen2.5-coder:7b（Ollama） | **0 / 4** — ツールループを回せない | — | 0.5秒 / 1,300 |
+
+合格したモデルはいずれも、フィクスチャに仕込んでいない実在の問題
+（`DEBUG = True`）も併せて指摘しました。**十分な能力のモデル同士では
+検出結果は一様で、差が出たのは深刻度の較正と速度だけ**です。律速に
+なるのはサーバーやトランスポートではなくモデルの能力なので、
+おおむね 27B 級以上を推奨します。ツール呼び出しを正しく出力できない
+モデルは、何も読まないまま即座に「クリーン」と回答しますが、
+エンジンはこれをクリーンなスキャンとして扱わず、エラー（終了コード 2）
+として拒否します。
+
+手法・各ランの所見・失敗の分析は
+[docs/local-llm-e2e-verification.md](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md)
+を参照してください。
 
 > **注意**: サーバーが同時に1リクエストしか処理できない場合は、
 > 並列ではなく直列でスキャンを実行してください。
