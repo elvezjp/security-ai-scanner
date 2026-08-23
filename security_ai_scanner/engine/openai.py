@@ -334,6 +334,7 @@ class OpenAICompatEngine(ScanEngine):
         result = EngineResult()
         start = time.monotonic()
         total_tokens = 0
+        executed_tool_calls = 0
         final_text: str | None = None
 
         def send(payload_messages, *, with_tools: bool) -> dict[str, Any]:
@@ -389,6 +390,7 @@ class OpenAICompatEngine(ScanEngine):
                         content = f"error: invalid tool arguments: {exc}"
                     else:
                         content = tools.call(str(function.get("name", "")), args)
+                        executed_tool_calls += 1
                 messages.append(
                     {
                         "role": "tool",
@@ -426,4 +428,24 @@ class OpenAICompatEngine(ScanEngine):
         if not result.text and result.structured_output is None:
             result.is_error = True
             result.error_message = "engine returned no final output"
+        elif executed_tool_calls == 0:
+            # A verdict produced without a single file inspection is not a
+            # scan. Small models often emit tool calls as plain text that
+            # the server cannot parse into tool_calls, then degenerate to
+            # an immediate "clean" answer — which must never pass a CI gate.
+            result.is_error = True
+            result.structured_output = None
+            if result.stopped_reason == "budget_exceeded":
+                result.error_message = (
+                    "token budget exhausted before any file was inspected; "
+                    "raise --max-tokens"
+                )
+            else:
+                result.error_message = (
+                    "model produced a final answer without inspecting any "
+                    "files (no tool calls executed). The endpoint or model "
+                    "probably does not support function calling — check "
+                    "tool support for this model (llama.cpp server needs "
+                    "--jinja), or use a more capable model"
+                )
         return result

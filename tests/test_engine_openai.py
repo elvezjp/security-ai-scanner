@@ -101,7 +101,15 @@ class TestLoop:
         assert "1\tx = 1" in tool_msg["content"]
 
     def test_structured_output_parses_final_json(self, tmp_path, monkeypatch):
-        transport = _FakeTransport([_response(content=FINAL_JSON)])
+        (tmp_path / "app.py").write_text("x = 1\n", "utf-8")
+        transport = _FakeTransport(
+            [
+                _response(
+                    tool_calls=[_tool_call("c1", "read_file", {"path": "app.py"})]
+                ),
+                _response(content=FINAL_JSON),
+            ]
+        )
         request = _request(tmp_path, structured_output=True)
         result = _run(request, transport, monkeypatch)
 
@@ -110,6 +118,38 @@ class TestLoop:
         assert payload["response_format"]["type"] == "json_schema"
 
     def test_budget_exceeded_stops_and_finalizes(self, tmp_path, monkeypatch):
+        (tmp_path / "app.py").write_text("x = 1\n", "utf-8")
+        transport = _FakeTransport(
+            [
+                # Round 1: under budget, the tool executes normally.
+                _response(
+                    tool_calls=[_tool_call("c1", "read_file", {"path": "app.py"})],
+                    total_tokens=500,
+                ),
+                # Round 2: budget now exhausted; the pending call is refused.
+                _response(
+                    tool_calls=[_tool_call("c2", "read_file", {"path": "app.py"})],
+                    total_tokens=5000,
+                ),
+                _response(content=FINAL_FENCED, total_tokens=100),
+            ]
+        )
+        request = _request(tmp_path, max_total_tokens=1000)
+        result = _run(request, transport, monkeypatch)
+
+        assert result.stopped_reason == "budget_exceeded"
+        assert result.is_error is False  # partial findings are kept
+        assert result.text == FINAL_FENCED
+        assert result.total_tokens == 5600
+        # The pending tool call was answered with a budget notice, not data,
+        # and the finalize request carried no tools.
+        finalize = transport.requests[2]["payload"]
+        assert "tools" not in finalize
+        assert "budget exhausted" in finalize["messages"][-1]["content"].lower()
+
+    def test_budget_exhausted_before_any_inspection_is_error(
+        self, tmp_path, monkeypatch
+    ):
         (tmp_path / "app.py").write_text("x = 1\n", "utf-8")
         transport = _FakeTransport(
             [
@@ -123,14 +163,29 @@ class TestLoop:
         request = _request(tmp_path, max_total_tokens=1000)
         result = _run(request, transport, monkeypatch)
 
-        assert result.stopped_reason == "budget_exceeded"
-        assert result.text == FINAL_FENCED
-        assert result.total_tokens == 5100
-        # The pending tool call was answered with a budget notice, not data,
-        # and the finalize request carried no tools.
-        finalize = transport.requests[1]["payload"]
-        assert "tools" not in finalize
-        assert "budget exhausted" in finalize["messages"][-1]["content"].lower()
+        assert result.is_error is True
+        assert "before any file was inspected" in result.error_message
+
+    def test_verdict_without_any_tool_call_is_error(self, tmp_path, monkeypatch):
+        # Observed with small models on Ollama: tool calls emitted as plain
+        # text the server cannot parse, then an immediate "clean" verdict.
+        # That must never pass as a clean scan.
+        transport = _FakeTransport([_response(content=FINAL_FENCED)])
+        result = _run(_request(tmp_path), transport, monkeypatch)
+
+        assert result.is_error is True
+        assert "without inspecting any files" in result.error_message
+
+    def test_verdict_without_tool_call_clears_structured_output(
+        self, tmp_path, monkeypatch
+    ):
+        transport = _FakeTransport([_response(content=FINAL_JSON)])
+        request = _request(tmp_path, structured_output=True)
+        result = _run(request, transport, monkeypatch)
+
+        # structured_output must not survive, or the runner would trust it.
+        assert result.is_error is True
+        assert result.structured_output is None
 
     def test_max_turns_exhausted_finalizes(self, tmp_path, monkeypatch):
         (tmp_path / "app.py").write_text("x = 1\n", "utf-8")

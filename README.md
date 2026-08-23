@@ -142,6 +142,11 @@ model is missing, the error lists what the server actually offers
 `--max-tokens N` sets a total-token budget for the scan. When the
 budget is reached the engine stops calling tools, collects the findings
 it has, and marks `summary.json` with `"stopped": "budget_exceeded"`.
+A budget-stopped scan with no findings still exits 0, and the model's
+prose summary may not admit the scan was cut short — in CI, also check
+that `stopped` is null before trusting a clean result. Note that
+servers that omit the `usage` field in responses under-count
+`total_tokens`, which weakens budget enforcement on such servers.
 
 ### Anthropic-compatible servers (`--engine claude`, the default)
 
@@ -162,6 +167,10 @@ single model, and clears any hosted credentials from the subprocess
 environment so they cannot take precedence over the local endpoint.
 
 ### Common to both engines
+
+The scanner sends repository contents to whatever `--base-url` you
+give it — treat that URL as trusted infrastructure and never point it
+at an endpoint you do not control.
 
 If your endpoint requires a real credential, prefer the
 `SAIS_AUTH_TOKEN` environment variable over `--auth-token`:
