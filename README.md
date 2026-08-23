@@ -410,8 +410,9 @@ Tracked issues use labels `priority:P0` / `P1` / `P2` and `roadmap`.
 ### Non-goals for the public core
 
 - Vendor- or org-specific “repo hygiene” checklists (docs drift, internal ADR
-  rules). Those belong in private wrappers or custom profiles pointed at with
-  `--profile`, not hard-coded into this package
+  rules). Those belong in private wrappers or custom profiles passed via the
+  planned `--profile` option ([#8](https://github.com/elvezjp/security-ai-scanner/issues/8)),
+  not hard-coded into this package
 - Turning the tool into a general-purpose code review bot. The product focus
   stays security findings with structured evidence
 
