@@ -250,3 +250,37 @@ class TestReadOnlyTools:
         assert lines[0] == "3\tL3"
         assert lines[1] == "4\tL4"
         assert "truncated" in lines[2]
+
+
+class TestTransportErrors:
+    """Transport failures must surface as EngineError (CLI exit 2), never
+    escape as raw exceptions (which would exit 1 — the CI-gate code)."""
+
+    def _engine_error_from(self, monkeypatch, exc):
+        def raising_urlopen(*args, **kwargs):
+            raise exc
+
+        monkeypatch.setattr(
+            openai_engine.urllib.request, "urlopen", raising_urlopen
+        )
+        with pytest.raises(EngineError) as caught:
+            openai_engine._request_json("http://x/v1/chat/completions", {}, {})
+        return str(caught.value)
+
+    def test_socket_timeout_is_wrapped(self, monkeypatch):
+        message = self._engine_error_from(monkeypatch, TimeoutError("timed out"))
+        assert "timed out" in message
+
+    def test_connection_reset_is_wrapped(self, monkeypatch):
+        message = self._engine_error_from(
+            monkeypatch, ConnectionResetError("peer reset")
+        )
+        assert "Transport error" in message
+
+    def test_http_protocol_error_is_wrapped(self, monkeypatch):
+        import http.client
+
+        message = self._engine_error_from(
+            monkeypatch, http.client.BadStatusLine("garbage")
+        )
+        assert "Transport error" in message

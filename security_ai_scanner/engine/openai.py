@@ -12,6 +12,7 @@ or network tool for the model to call.
 
 from __future__ import annotations
 
+import http.client
 import json
 import os
 import re
@@ -127,6 +128,15 @@ def _request_json(
         ) from exc
     except urllib.error.URLError as exc:
         raise EngineError(f"Cannot reach endpoint {url}: {exc.reason}") from exc
+    except TimeoutError as exc:
+        raise EngineError(
+            f"Request to {url} timed out after {REQUEST_TIMEOUT_SECONDS}s"
+        ) from exc
+    except (OSError, http.client.HTTPException) as exc:
+        # Sockets can fail mid-read with raw OS or http.client errors that
+        # urllib does not wrap in URLError; keep the exit-code contract
+        # (engine failure = 2, never the CI-gate code 1).
+        raise EngineError(f"Transport error for {url}: {exc}") from exc
     except json.JSONDecodeError as exc:
         raise EngineError(f"Endpoint returned invalid JSON: {exc}") from exc
 
