@@ -24,7 +24,7 @@ human-readable Markdown report.
 - **CI Gate Built In**: `--fail-on high` exits non-zero when findings meet the threshold, so a scan can block a pipeline
 - **Structured Findings**: Results are produced against a JSON Schema (severity, confidence, CWE, evidence, recommendation) — no fragile text parsing
 - **Bilingual Reports**: Finding descriptions and the Markdown report can be generated in English or Japanese (`--language ja`)
-- **Local LLM Support**: Point `--base-url` at a self-hosted, Anthropic-compatible inference server to scan without sending code off the machine
+- **Local LLM Support**: Scan without sending code off the machine — point the built-in `openai` engine at any OpenAI-compatible server (vLLM, Ollama, LM Studio, llama.cpp), or the default `claude` engine at an Anthropic-compatible endpoint
 - **Engine-Agnostic Core**: The scanner core talks to a thin engine adapter; the default engine is the Claude Agent SDK, and other backends can be added without touching the core
 
 ## Use Cases
@@ -113,9 +113,46 @@ sais scan . -v
 
 ## Scanning with a Local LLM
 
-Point `--base-url` at any self-hosted, Anthropic-compatible endpoint to
-keep the code on your own infrastructure. Nothing is sent to a hosted
-API.
+Two engines connect to self-hosted endpoints. Either way, nothing is
+sent to a hosted API.
+
+### OpenAI-compatible servers (`--engine openai`)
+
+Most self-hosted inference speaks the OpenAI API — vLLM, Ollama,
+LM Studio, llama.cpp server, and corporate gateways. The `openai`
+engine connects to them directly with a minimal built-in agent loop:
+its only tools are `read_file` / `glob` / `grep`, implemented in this
+package and sandboxed to the scan root, so the read-only guarantee is
+structural — no shell, write, or network tool exists in the loop, and
+no third-party agent harness is involved.
+
+```bash
+sais scan ./repo \
+  --engine openai \
+  --base-url http://127.0.0.1:11434/v1 \
+  --model qwen2.5-coder:32b
+```
+
+`--model` is required (or set `SAIS_MODEL`): there is no default on
+purpose, because some servers ignore the model field and a guessed
+default would record a wrong model name in the scan outputs. When the
+model is missing, the error lists what the server actually offers
+(via `GET /v1/models`).
+
+`--max-tokens N` sets a total-token budget for the scan. When the
+budget is reached the engine stops calling tools, collects the findings
+it has, and marks `summary.json` with `"stopped": "budget_exceeded"`.
+A budget-stopped scan with no findings still exits 0, and the model's
+prose summary may not admit the scan was cut short — in CI, also check
+that `stopped` is null before trusting a clean result. Note that
+servers that omit the `usage` field in responses under-count
+`total_tokens`, which weakens budget enforcement on such servers.
+
+### Anthropic-compatible servers (`--engine claude`, the default)
+
+Point `--base-url` at a self-hosted, Anthropic-compatible endpoint.
+Note that this path runs the Claude Agent SDK's bundled Claude Code CLI
+locally as the agent harness; only the inference endpoint changes.
 
 ```bash
 sais scan ./repo \
@@ -129,15 +166,22 @@ The scanner pins every model slot the agent harness uses (opus / sonnet
 single model, and clears any hosted credentials from the subprocess
 environment so they cannot take precedence over the local endpoint.
 
+### Common to both engines
+
+The scanner sends repository contents to whatever `--base-url` you
+give it — treat that URL as trusted infrastructure and never point it
+at an endpoint you do not control.
+
 If your endpoint requires a real credential, prefer the
 `SAIS_AUTH_TOKEN` environment variable over `--auth-token`:
 command-line arguments are visible in process lists, shell history,
 and CI logs.
 
 Schema-constrained structured output is turned **off** automatically for
-a custom `--base-url`, because most local servers do not implement it.
+a custom `--base-url`, because support in local servers is inconsistent.
 The scanner instead asks for a fenced JSON block and parses that. If
-your server does support it, re-enable with `--structured-output`.
+your server does support it (`response_format: json_schema` for the
+openai engine), re-enable with `--structured-output`.
 
 ### Scope the target to fit the context window
 
@@ -212,9 +256,9 @@ See [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/C
 | Option | Default | Description |
 |--------|---------|-------------|
 | `-o`, `--output-dir` | `./security-scan-results` | Output directory |
-| `--engine` | `claude` | AI engine backend |
-| `--model` | Engine default | Model override passed to the engine |
-| `--base-url` | Hosted API | Anthropic-compatible endpoint (local LLM server) |
+| `--engine` | `claude` | AI engine backend: `claude` (Claude Agent SDK) or `openai` (built-in loop for OpenAI-compatible endpoints) |
+| `--model` | Engine default (`claude`) / required (`openai`) | Model passed to the engine (or `SAIS_MODEL` env var) |
+| `--base-url` | Hosted API | Self-hosted endpoint: Anthropic-compatible (`claude`) or OpenAI-compatible (`openai`) |
 | `--auth-token` | `SAIS_AUTH_TOKEN` env var | Auth token for `--base-url` (prefer the env var for real credentials) |
 | `--structured-output` | Auto | Force schema-constrained output on/off (`--no-structured-output` to disable) |
 | `--language` | `en` | Language for findings and report (`en` / `ja`) |
@@ -222,6 +266,7 @@ See [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/C
 | `--fail-on` | `high` | CI gate threshold (`critical`/`high`/`medium`/`low`/`info`/`none`) |
 | `--format` | All | Output format, repeatable (`json`/`sarif`/`markdown`) |
 | `--max-turns` | `100` | Maximum agent turns |
+| `--max-tokens` | No cap | Total-token budget for the scan (openai engine); stops early with partial findings |
 | `-v`, `--verbose` | false | Stream agent progress to stderr |
 | `--json` | false | Print the machine-readable summary to stdout (for agents and scripts) |
 | `--notify-webhook` | - | Webhook URL to POST the run summary to on completion/failure (or `SAIS_NOTIFY_WEBHOOK`) |

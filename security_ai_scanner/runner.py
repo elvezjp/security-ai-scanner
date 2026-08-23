@@ -177,6 +177,10 @@ def build_summary(
         "exit_code": 1 if gate_failed else 0,
         "duration_ms": engine_result.duration_ms,
         "cost_usd": cost,
+        "total_tokens": engine_result.total_tokens,
+        # Why the scan stopped early ("budget_exceeded", "max_turns"), or
+        # null for a normal completion. Findings may be partial when set.
+        "stopped": engine_result.stopped_reason,
         "outputs": outputs,
     }
 
@@ -200,6 +204,7 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
         output_schema=FINDINGS_SCHEMA,
         model=config.model,
         max_turns=config.max_turns,
+        max_total_tokens=config.max_total_tokens,
         verbose=config.verbose,
         base_url=config.base_url,
         auth_token=config.auth_token,

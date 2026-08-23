@@ -240,3 +240,33 @@ class TestEngineRegistry:
     def test_claude_engine_registered(self):
         engine = engine_base.get_engine("claude")
         assert engine.name == "claude"
+
+
+class TestSummaryEngineAccounting:
+    FINDING = TestSummary.FINDING
+
+    def test_summary_reports_tokens_and_stop_reason(
+        self, repo, tmp_path, mock_engine
+    ):
+        mock_engine["result"] = EngineResult(
+            structured_output={
+                "findings": [self.FINDING],
+                "summary": "partial",
+                "files_reviewed": 2,
+            },
+            total_tokens=45678,
+            stopped_reason="budget_exceeded",
+        )
+        result = run_scan(_config(repo, tmp_path))
+        assert result.summary["total_tokens"] == 45678
+        assert result.summary["stopped"] == "budget_exceeded"
+
+    def test_summary_defaults_are_null_for_normal_runs(
+        self, repo, tmp_path, mock_engine
+    ):
+        mock_engine["result"] = EngineResult(
+            structured_output={"findings": [], "summary": "clean"}
+        )
+        result = run_scan(_config(repo, tmp_path))
+        assert result.summary["total_tokens"] is None
+        assert result.summary["stopped"] is None
