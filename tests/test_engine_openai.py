@@ -187,11 +187,23 @@ class TestReadOnlyTools:
     def test_symlink_escape_is_blocked(self, tmp_path):
         root = tmp_path / "repo"
         root.mkdir()
-        (tmp_path / "secret.txt").write_text("secret\n", "utf-8")
+        (tmp_path / "secret.txt").write_text("TOPSECRET\n", "utf-8")
         (root / "link.txt").symlink_to(tmp_path / "secret.txt")
         tools = ReadOnlyTools(root)
         out = tools.call("read_file", {"path": "link.txt"})
         assert out.startswith("error:")
+        assert "TOPSECRET" not in out
+
+    def test_grep_symlink_escape_is_blocked(self, tmp_path):
+        root = tmp_path / "repo"
+        root.mkdir()
+        (tmp_path / "secret.txt").write_text("TOPSECRET=1\n", "utf-8")
+        (root / "leak.txt").symlink_to(tmp_path / "secret.txt")
+        (root / "ok.py").write_text("x = 1\n", "utf-8")
+        tools = ReadOnlyTools(root)
+        found = tools.call("grep", {"pattern": "TOPSECRET"})
+        assert "TOPSECRET" not in found
+        assert found == "no matches" or found.startswith("error:")
 
     def test_only_three_tools_exist(self, tmp_path):
         tools = ReadOnlyTools(tmp_path)
@@ -207,7 +219,9 @@ class TestReadOnlyTools:
         tools = ReadOnlyTools(tmp_path)
 
         listed = tools.call("glob", {"pattern": "**/*.py"})
-        assert "a.py" in listed and "pkg/b.py" in listed
+        listed_paths = set(listed.splitlines())
+        assert "a.py" in listed_paths
+        assert "pkg/b.py" in listed_paths
 
         found = tools.call("grep", {"pattern": r"password\s*="})
         assert found.startswith("a.py:1:")
@@ -220,6 +234,13 @@ class TestReadOnlyTools:
         tools = ReadOnlyTools(tmp_path)
         assert tools.call("glob", {"pattern": "../*"}).startswith("error:")
         assert tools.call("glob", {"pattern": "/etc/*"}).startswith("error:")
+
+    def test_read_file_rejects_oversized(self, tmp_path):
+        fat = tmp_path / "fat.bin"
+        fat.write_bytes(b"x" * (openai_engine.MAX_FILE_BYTES + 1))
+        tools = ReadOnlyTools(tmp_path)
+        out = tools.call("read_file", {"path": "fat.bin"})
+        assert out.startswith("error: file too large")
 
     def test_read_file_offset_and_truncation(self, tmp_path):
         (tmp_path / "f.txt").write_text("\n".join(f"L{i}" for i in range(1, 11)), "utf-8")

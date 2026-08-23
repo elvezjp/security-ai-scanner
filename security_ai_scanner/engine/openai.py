@@ -32,8 +32,8 @@ MAX_READ_LINES = 2000
 MAX_LINE_CHARS = 500
 MAX_GLOB_RESULTS = 200
 MAX_GREP_MATCHES = 200
-#: Files larger than this are skipped by grep (binary blobs, bundles).
-MAX_GREP_FILE_BYTES = 1_000_000
+#: Files larger than this are skipped by read_file / grep (binary blobs, bundles).
+MAX_FILE_BYTES = 1_000_000
 
 #: OpenAI function-calling schemas for the read-only toolset.
 TOOL_DEFS: list[dict[str, Any]] = [
@@ -164,12 +164,25 @@ class ReadOnlyTools:
             raise ValueError(f"path escapes the scan root: {rel}")
         return path
 
+    def _under_root(self, path: Path) -> bool:
+        """True when ``path`` (already resolved) stays inside the scan root."""
+        return path == self.root or self.root in path.parents
+
     def _read_file(
         self, path: str, offset: int = 1, limit: int = MAX_READ_LINES
     ) -> str:
         target = self._resolve(path)
         if not target.is_file():
             return f"error: not a file: {path}"
+        try:
+            size = target.stat().st_size
+        except OSError as exc:
+            return f"error: {exc}"
+        if size > MAX_FILE_BYTES:
+            return (
+                f"error: file too large ({size} bytes); "
+                f"max is {MAX_FILE_BYTES}"
+            )
         offset = max(1, int(offset))
         limit = max(1, min(int(limit), MAX_READ_LINES))
         lines = target.read_text("utf-8", errors="replace").splitlines()
@@ -190,11 +203,21 @@ class ReadOnlyTools:
     def _glob(self, pattern: str) -> str:
         if pattern.startswith(("/", "~")) or ".." in pattern:
             return "error: pattern must be relative to the repository root"
-        matches = sorted(
-            str(p.relative_to(self.root))
-            for p in self.root.glob(pattern)
-            if p.is_file() and ".git" not in p.relative_to(self.root).parts
-        )
+        matches: list[str] = []
+        for path in self.root.glob(pattern):
+            if not path.is_file():
+                continue
+            try:
+                rel = path.relative_to(self.root)
+            except ValueError:
+                continue
+            if ".git" in rel.parts:
+                continue
+            # Drop symlinks (and anything else) whose target leaves the root.
+            if not self._under_root(path.resolve()):
+                continue
+            matches.append(rel.as_posix())
+        matches.sort()
         if not matches:
             return "no files match"
         clipped = matches[:MAX_GLOB_RESULTS]
@@ -211,14 +234,13 @@ class ReadOnlyTools:
             return f"error: invalid regex: {exc}"
         base = self._resolve(path)
         matches: list[str] = []
-        for file in self._iter_files(base):
+        for file, rel in self._iter_files(base):
             try:
-                if file.stat().st_size > MAX_GREP_FILE_BYTES:
+                if file.stat().st_size > MAX_FILE_BYTES:
                     continue
                 text = file.read_text("utf-8", errors="replace")
             except OSError:
                 continue
-            rel = file.relative_to(self.root)
             for lineno, line in enumerate(text.splitlines(), 1):
                 if regex.search(line):
                     matches.append(f"{rel}:{lineno}: {line.strip()[:200]}")
@@ -228,13 +250,27 @@ class ReadOnlyTools:
         return "\n".join(matches) if matches else "no matches"
 
     def _iter_files(self, base: Path):
+        """Yield ``(resolved_file, posix_rel)`` for files that stay under root.
+
+        Symlinks whose targets leave the scan root are skipped, so grep cannot
+        exfiltrate contents that ``read_file`` would refuse.
+        """
         if base.is_file():
-            yield base
+            if self._under_root(base.resolve()):
+                yield base, base.relative_to(self.root).as_posix()
             return
-        for dirpath, dirnames, filenames in os.walk(base):
+        for dirpath, dirnames, filenames in os.walk(base, followlinks=False):
             dirnames[:] = [d for d in dirnames if d != ".git"]
             for name in filenames:
-                yield Path(dirpath) / name
+                candidate = Path(dirpath) / name
+                try:
+                    rel = candidate.relative_to(self.root).as_posix()
+                    resolved = candidate.resolve()
+                except (OSError, ValueError):
+                    continue
+                if not self._under_root(resolved):
+                    continue
+                yield resolved, rel
 
 
 def _missing_model_error(base_url: str, headers: dict[str, str]) -> EngineError:
