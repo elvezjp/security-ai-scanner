@@ -91,14 +91,40 @@ exit=2
 The same guard treats "token budget exhausted before any file was
 inspected" as an error rather than a trustworthy partial result.
 
+## Run 3: Ollama + qwen3.8:27b
+
+- Server: Ollama 0.32.x (`http://127.0.0.1:11434/v1`)
+- Model: qwen3.8:27b (18 GB)
+
+**Result: 4 / 4 planted vulnerabilities found, plus the unplanted
+`DEBUG = True` finding. Zero false positives.** 131 s, 10,759 tokens,
+exit code 1 (CI gate, as expected). Line numbers were exact or within
+source-vs-sink line choice (e.g. the command injection cited the line
+that reads the request parameter; the 30B run cited the `subprocess`
+sink one line below — both defensible).
+
+Notably, its summary correctly observed that `DEBUG = True` is *not
+yet wired into the running app* (nothing imports it), and rated it
+low — a sharper contextual judgment than the 30B run's medium. It
+also connected the path-traversal bug to the hardcoded key ("the key
+is readable over the network"), a compound-risk observation neither
+planted nor prompted.
+
+This validates the Run 2 conclusion from the success side: same
+server, same scanner, same fixture — the 7B model could not drive the
+tool loop at all, while a 27B model produced hosted-quality results.
+Transport was never the problem.
+
 ## Conclusions
 
 - The `openai` engine works end to end against real OpenAI-compatible
   servers; llama.cpp (`--jinja`) with a capable ~30B model produced
   hosted-quality results on the fixture (4/4, exact lines, zero false
   positives)
-- Model capability is the gating factor, not the transport: a 7B coder
-  model could not drive the tool loop at all
+- Model capability is the gating factor, not the transport: on the same
+  Ollama server, a 7B coder model could not drive the tool loop at all
+  while a 27B general model went 4/4 with compound-risk reasoning —
+  prefer roughly 27B-class or larger for real scans
 - Failure modes discovered live (silent no-inspection verdict) are now
   structural errors, covered by unit tests
 
@@ -112,5 +138,7 @@ openai エンジンの実機 E2E 記録。脆弱性4件を植えた Flask フィ
 実機で確認。(2) Ollama + qwen2.5-coder:7b は接続・モデル列挙は動作したが、モデルが
 ツールを一度も呼ばず即「クリーン」と誤答(4/4 再現)。この危険な偽陰性を
 受け、「ツール実行ゼロの最終回答はエンジンエラー(exit 2)」のガードを
-実装し、同環境で動作確認済み。結論: トランスポートは実証済み、律速は
-モデル能力。ツールループを回せる 30B 級以上を推奨。
+実装し、同環境で動作確認済み。(3) Ollama + qwen3.8:27b(18GB)は 4/4 検出＋DEBUG 未配線の文脈まで
+正しく判断し誤検出ゼロ(131秒)。結論: トランスポートは実証済み、律速は
+モデル能力。同一サーバで 7B は全滅・27B は完走なので、実運用は概ね
+27B 級以上を推奨。
