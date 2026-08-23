@@ -115,6 +115,22 @@ server, same scanner, same fixture — the 7B model could not drive the
 tool loop at all, while a 27B model produced hosted-quality results.
 Transport was never the problem.
 
+## Run 4: Ollama + ornith-1.5:35b
+
+- Server: Ollama 0.32.x (`http://127.0.0.1:11434/v1`)
+- Model: ornith-1.5:35b (22 GB)
+
+**Result: 4 / 4 planted vulnerabilities found, plus the unplanted
+`DEBUG = True` finding. Zero false positives. Every line number
+exact.** 25 s, 6,887 tokens — the fastest quality run of the set —
+exit code 1 (CI gate, as expected).
+
+Severity calibration was more conservative than the other passing
+models: command injection rated high (not critical) and path traversal
+medium. This matches the README's standing observation that local
+models are weakest at judging *how much a finding matters*; the gate
+outcome was unaffected.
+
 ## Conclusions
 
 - The `openai` engine works end to end against real OpenAI-compatible
@@ -123,8 +139,11 @@ Transport was never the problem.
   positives)
 - Model capability is the gating factor, not the transport: on the same
   Ollama server, a 7B coder model could not drive the tool loop at all
-  while a 27B general model went 4/4 with compound-risk reasoning —
-  prefer roughly 27B-class or larger for real scans
+  while 27B/35B models went 4/4 — prefer roughly 27B-class or larger
+  for real scans
+- Among passing models, detection was uniform (4/4 + the same bonus
+  finding, zero false positives on every run); what varies is severity
+  calibration and speed (25 s–131 s on the same fixture)
 - Failure modes discovered live (silent no-inspection verdict) are now
   structural errors, covered by unit tests
 
@@ -139,6 +158,8 @@ openai エンジンの実機 E2E 記録。脆弱性4件を植えた Flask フィ
 ツールを一度も呼ばず即「クリーン」と誤答(4/4 再現)。この危険な偽陰性を
 受け、「ツール実行ゼロの最終回答はエンジンエラー(exit 2)」のガードを
 実装し、同環境で動作確認済み。(3) Ollama + qwen3.8:27b(18GB)は 4/4 検出＋DEBUG 未配線の文脈まで
-正しく判断し誤検出ゼロ(131秒)。結論: トランスポートは実証済み、律速は
+正しく判断し誤検出ゼロ(131秒)。(4) Ollama + ornith-1.5:35b(22GB)も
+4/4・誤検出ゼロ・行番号全件正確で最速(25秒)。ただし深刻度較正は
+保守的寄りに揺れる。結論: トランスポートは実証済み、律速は
 モデル能力。同一サーバで 7B は全滅・27B は完走なので、実運用は概ね
 27B 級以上を推奨。
