@@ -129,6 +129,8 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
   "exit_code": 1,
   "duration_ms": 123456,
   "cost_usd": 1.23,
+  "total_tokens": 45678,
+  "stopped": null,
   "outputs": {"findings.json": "パス", "findings.sarif": "パス", "report.md": "パス", "summary.json": "パス"}
 }
 ```
@@ -136,6 +138,10 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `exit_code` はゲート判定に基づく確定値（0 または 1）。エラー時（2）は
   サマリ自体が生成されない
 - `cost_usd` は `--base-url` 指定時（自社ホスト）は課金が発生しないため `null`
+- `total_tokens` はエンジンが使用量を計上できる場合の総トークン数
+  （openai エンジン）。計上できないエンジンでは `null`
+- `stopped` は早期終了の理由（`"budget_exceeded"` / `"max_turns"`）。
+  通常完了時は `null`。非 null のとき所見は部分的である可能性がある
 - `outputs` は実際に書き出したファイルのみを含む
 
 ### 4.1 SARIF マッピング
@@ -158,16 +164,17 @@ sais scan TARGET [options]        # 短縮エイリアス
 | オプション | 既定値 | 説明 |
 |---|---|---|
 | `-o/--output-dir` | `./security-scan-results` | 出力ディレクトリ |
-| `--engine` | `claude` | エンジン名（レジストリ検索） |
-| `--model` | なし | エンジンへのモデル指定 |
+| `--engine` | `claude` | エンジン名（レジストリ検索）。`claude` / `openai` |
+| `--model` | なし | エンジンへのモデル指定（環境変数 `SAIS_MODEL` でも可）。`openai` エンジンでは必須 |
 | `--language` | `en` | `en` / `ja` |
 | `--context` | なし | 追加コンテキスト（信頼できない入力として扱う） |
 | `--fail-on` | `high` | CI ゲートしきい値。`none` で無効化 |
 | `--format` | 全形式 | `json`/`sarif`/`markdown`。繰り返し指定可 |
-| `--base-url` | なし | Anthropic 互換エンドポイント（ローカルLLM等） |
+| `--base-url` | なし | 自社ホストのエンドポイント。`claude` は Anthropic 互換 / `openai` は OpenAI 互換 |
 | `--auth-token` | なし | `--base-url` 用の認証トークン |
 | `--structured-output` | 自動 | 構造化出力の強制切替。既定は `--base-url` 無指定時 on / 指定時 off |
 | `--max-turns` | `100` | エージェント最大ターン数 |
+| `--max-tokens` | なし | スキャン全体のトークン予算。到達時は部分所見で早期終了し `stopped: budget_exceeded` を記録（openai エンジンが強制。claude エンジンは使用量を逐次計上できないため未対応） |
 | `-v/--verbose` | false | エージェントのテキストを stderr に流す |
 | `--json` | false | 人向けサマリの代わりに §4.2 のサマリ JSON を stdout に出力（エージェント・スクリプト向け） |
 | `--notify-webhook` | なし | 完了・失敗時にサマリを POST する webhook URL（`SAIS_NOTIFY_WEBHOOK` でも指定可） |
@@ -193,9 +200,15 @@ sais scan TARGET [options]        # 短縮エイリアス
 
 ### 5.2 自社ホストのエンドポイント（ローカルLLM）
 
-`--base-url` を指定すると、エンジンはホスト型 API ではなく指定された
-Anthropic 互換エンドポイントに接続する。実装はエージェント子プロセスへの
-環境変数注入で行う（`engine/claude.py` の `_build_env()`）。
+`claude` エンジンで `--base-url` を指定すると、エンジンはホスト型 API では
+なく指定された Anthropic 互換エンドポイントに接続する。実装はエージェント
+子プロセスへの環境変数注入で行う（`engine/claude.py` の `_build_env()`）。
+
+`openai` エンジンは OpenAI 互換エンドポイント（Chat Completions +
+function calling）に直接接続する。ツール（read_file / glob / grep）は
+`engine/openai.py` が Python で実装し、スキャンルート配下に解決される
+パスのみ許可する（シンボリックリンクも解決後に判定）。ループ内に
+シェル・書き込み・ネットワークのツールは存在しない。
 
 | 環境変数 | 値 | 理由 |
 |---|---|---|

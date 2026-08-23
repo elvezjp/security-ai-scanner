@@ -33,6 +33,9 @@ class ScanRequest:
     #: Ask the backend for schema-constrained output. When False the engine
     #: returns text and the scanner parses JSON out of it.
     structured_output: bool = True
+    #: Total-token budget for the whole scan. Engines that account usage
+    #: per request stop early when the budget is reached; None = no cap.
+    max_total_tokens: int | None = None
 
 
 @dataclass
@@ -46,6 +49,11 @@ class EngineResult:
     num_turns: int = 0
     duration_ms: int = 0
     total_cost_usd: float | None = None
+    #: Total tokens consumed, when the engine can account them (else None).
+    total_tokens: int | None = None
+    #: Why the scan stopped early ("budget_exceeded", "max_turns"), or
+    #: None for a normal completion. Findings may be partial when set.
+    stopped_reason: str | None = None
 
 
 class ScanEngine(ABC):
@@ -61,9 +69,11 @@ class ScanEngine(ABC):
 def get_engine(name: str) -> ScanEngine:
     """Look up an engine by name."""
     from .claude import ClaudeAgentEngine
+    from .openai import OpenAICompatEngine
 
     engines: dict[str, type[ScanEngine]] = {
         ClaudeAgentEngine.name: ClaudeAgentEngine,
+        OpenAICompatEngine.name: OpenAICompatEngine,
     }
     try:
         return engines[name]()

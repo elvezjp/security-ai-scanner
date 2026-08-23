@@ -51,19 +51,33 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument(
         "--engine",
         default="claude",
-        help="AI engine backend (default: claude)",
+        choices=("claude", "openai"),
+        help=(
+            "AI engine backend: 'claude' (Claude Agent SDK, hosted API or "
+            "Anthropic-compatible --base-url) or 'openai' (built-in "
+            "read-only loop for OpenAI-compatible endpoints; requires "
+            "--base-url and --model) (default: claude)"
+        ),
     )
     scan.add_argument(
         "--model",
         default=None,
-        help="Model override passed to the engine (default: engine default)",
+        help=(
+            "Model passed to the engine (or set SAIS_MODEL). Optional for "
+            "--engine claude; required for --engine openai, which has no "
+            "default on purpose: some servers ignore the model field, and "
+            "a guessed default would record a wrong model name in the "
+            "scan outputs"
+        ),
     )
     scan.add_argument(
         "--base-url",
         default=None,
         help=(
-            "Anthropic-compatible endpoint to scan with instead of the "
-            "hosted API, e.g. a local LLM server at http://127.0.0.1:8000"
+            "Endpoint to scan with instead of the hosted API. For "
+            "--engine claude: an Anthropic-compatible server, e.g. "
+            "http://127.0.0.1:8000. For --engine openai: an "
+            "OpenAI-compatible server, e.g. http://127.0.0.1:11434/v1"
         ),
     )
     scan.add_argument(
@@ -125,6 +139,18 @@ def build_parser() -> argparse.ArgumentParser:
         help="Maximum agent turns for the scan (default: 100)",
     )
     scan.add_argument(
+        "--max-tokens",
+        dest="max_total_tokens",
+        type=int,
+        default=None,
+        metavar="N",
+        help=(
+            "Total-token budget for the scan (openai engine): stop early "
+            "when reached, keep the findings collected so far, and mark "
+            "summary.json with stopped=budget_exceeded (default: no cap)"
+        ),
+    )
+    scan.add_argument(
         "-v",
         "--verbose",
         action="store_true",
@@ -175,12 +201,13 @@ def _config_from_args(args: argparse.Namespace) -> ScanConfig:
         target=args.target,
         output_dir=args.output_dir,
         engine=args.engine,
-        model=args.model,
+        model=args.model or os.environ.get("SAIS_MODEL") or None,
         language=args.language,
         context=args.context,
         fail_on=args.fail_on,
         formats=tuple(args.formats) if args.formats else OUTPUT_FORMATS,
         max_turns=args.max_turns,
+        max_total_tokens=args.max_total_tokens,
         verbose=args.verbose,
         base_url=args.base_url,
         # An explicitly passed --auth-token wins even when it is empty:
@@ -245,6 +272,12 @@ def main(argv: list[str] | None = None) -> int:
             print(json.dumps(result.summary, ensure_ascii=False))
         else:
             _print_summary(result, config)
+        if result.engine_result.stopped_reason:
+            print(
+                f"warning: scan stopped early ({result.engine_result.stopped_reason}); "
+                "findings may be incomplete.",
+                file=sys.stderr,
+            )
         if result.gate_failed:
             print(
                 f"CI gate: findings at or above '{config.fail_on}' severity "

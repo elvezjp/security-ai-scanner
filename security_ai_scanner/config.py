@@ -26,6 +26,9 @@ class ScanConfig:
     engine: str = "claude"
     model: str | None = None
     max_turns: int = 100
+    #: Total-token budget for the scan; None = no cap. Enforced by
+    #: engines that account usage per request (the openai engine).
+    max_total_tokens: int | None = None
     language: str = "en"
     context: str | None = None
     fail_on: str = "high"
@@ -65,3 +68,5 @@ class ScanConfig:
             raise ValueError(f"Unknown output formats: {sorted(unknown)}")
         if self.max_turns < 1:
             raise ValueError("max_turns must be >= 1")
+        if self.max_total_tokens is not None and self.max_total_tokens < 1:
+            raise ValueError("max_total_tokens must be >= 1")
