@@ -9,8 +9,10 @@ from security_ai_scanner.config import ScanConfig
 from security_ai_scanner.engine.base import EngineResult, ScanEngine
 from security_ai_scanner.exceptions import (
     EngineError,
+    FindingsParseError,
     PublicationError,
     TargetError,
+    get_published_summary,
 )
 from security_ai_scanner.publication import LOCK_NAME, OutputPublication
 from security_ai_scanner.runner import build_user_prompt, run_scan
@@ -128,9 +130,65 @@ class TestRunScan:
 
     def test_engine_error_raises(self, repo, tmp_path, mock_engine):
         mock_engine["result"] = EngineResult(is_error=True, error_message="boom")
-        with pytest.raises(EngineError):
+        with pytest.raises(EngineError) as caught:
             run_scan(_config(repo, tmp_path))
+        published = get_published_summary(caught.value)
+        on_disk = json.loads(
+            (tmp_path / "out" / "summary.json").read_text(encoding="utf-8")
+        )
+        assert published == on_disk
+        assert on_disk["status"] == "error"
+        assert on_disk["exit_code"] == 2
+        assert on_disk["outputs"] == {}
+        assert "boom" in on_disk["error"]
         assert not (tmp_path / "out" / LOCK_NAME).exists()
+
+    def test_parse_error_publishes_error_summary(
+        self, repo, tmp_path, mock_engine
+    ):
+        mock_engine["result"] = EngineResult(text="not findings JSON")
+
+        with pytest.raises(FindingsParseError) as caught:
+            run_scan(_config(repo, tmp_path))
+
+        published = get_published_summary(caught.value)
+        assert published is not None
+        assert published["status"] == "error"
+        assert "engine=mock" in published["error"]
+
+    def test_engine_error_with_valid_partial_output_is_still_error(
+        self, repo, tmp_path, mock_engine
+    ):
+        mock_engine["result"] = EngineResult(
+            structured_output={"findings": [], "summary": "partial"},
+            is_error=True,
+            error_message="turn limit reached",
+            stopped_reason="max_turns",
+        )
+
+        with pytest.raises(EngineError) as caught:
+            run_scan(_config(repo, tmp_path))
+
+        summary = get_published_summary(caught.value)
+        assert summary is not None
+        assert summary["status"] == "error"
+
+    def test_engine_error_with_output_but_no_partial_reason_is_error(
+        self, repo, tmp_path, mock_engine
+    ):
+        mock_engine["result"] = EngineResult(
+            structured_output={"findings": [], "summary": "untrusted"},
+            is_error=True,
+            error_message="engine failed",
+        )
+
+        with pytest.raises(EngineError) as caught:
+            run_scan(_config(repo, tmp_path))
+
+        summary = get_published_summary(caught.value)
+        assert summary is not None
+        assert summary["status"] == "error"
+        assert "engine failed" in summary["error"]
 
     def test_stale_summary_is_invalidated_before_engine_runs(
         self, repo, tmp_path, mock_engine, monkeypatch
@@ -206,9 +264,28 @@ class TestRunScan:
         with pytest.raises(PublicationError, match="injected interruption"):
             run_scan(_config(repo, tmp_path))
 
-        assert not summary_path.exists()
+        error_summary = json.loads(summary_path.read_text(encoding="utf-8"))
+        assert error_summary["status"] == "error"
+        assert error_summary["outputs"] == {}
         assert (output_dir / "findings.json").exists()
         assert not (output_dir / LOCK_NAME).exists()
+
+    def test_error_summary_publication_is_best_effort(
+        self, repo, tmp_path, mock_engine, monkeypatch
+    ):
+        mock_engine["result"] = _structured()
+
+        def fail_every_write(_publication, _name, _content):
+            raise PublicationError("output unavailable")
+
+        monkeypatch.setattr(OutputPublication, "write_text", fail_every_write)
+
+        with pytest.raises(PublicationError) as caught:
+            run_scan(_config(repo, tmp_path))
+
+        assert get_published_summary(caught.value) is None
+        assert not (tmp_path / "out" / "summary.json").exists()
+        assert not (tmp_path / "out" / LOCK_NAME).exists()
 
     def test_missing_target_raises(self, tmp_path, mock_engine):
         mock_engine["result"] = _structured()
@@ -293,6 +370,36 @@ class TestSummary:
         assert result.summary["exit_code"] == 0
         assert result.summary["gate"]["failed"] is False
         assert result.summary["counts"]["total"] == 0
+
+    @pytest.mark.parametrize(
+        ("stopped", "has_gate_finding", "expected_status", "expected_exit"),
+        [
+            (None, False, "completed", 0),
+            (None, True, "completed", 1),
+            ("max_turns", False, "incomplete", 0),
+            ("future_reason", True, "incomplete", 1),
+        ],
+    )
+    def test_status_and_exit_code_matrix(
+        self,
+        repo,
+        tmp_path,
+        mock_engine,
+        stopped,
+        has_gate_finding,
+        expected_status,
+        expected_exit,
+    ):
+        findings = [self.FINDING] if has_gate_finding else []
+        mock_engine["result"] = EngineResult(
+            structured_output={"findings": findings, "summary": "matrix"},
+            stopped_reason=stopped,
+        )
+
+        result = run_scan(_config(repo, tmp_path))
+
+        assert result.summary["status"] == expected_status
+        assert result.summary["exit_code"] == expected_exit
 
     def test_cost_is_null_for_self_hosted_endpoint(
         self, repo, tmp_path, mock_engine

@@ -51,8 +51,9 @@ class EngineResult:
     total_cost_usd: float | None = None
     #: Total tokens consumed, when the engine can account them (else None).
     total_tokens: int | None = None
-    #: Why the scan stopped early ("budget_exceeded", "max_turns"), or
-    #: None for a normal completion. Findings may be partial when set.
+    #: Language-neutral reason the scan stopped early (for example,
+    #: "budget_exceeded" or "max_turns"), or None for normal completion.
+    #: Any non-null value means findings are partial.
     stopped_reason: str | None = None
 
 

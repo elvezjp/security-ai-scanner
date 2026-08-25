@@ -92,7 +92,7 @@ schema version 1 without calling a live LLM.
 Completion condition: interruption tests prove that old and new artifacts
 cannot be mistaken for one completed run.
 
-### S3. Completion, interruption, and error behavior
+### S3. Completion, interruption, and error behavior — Complete
 
 - Emit `status: completed` only when analysis finishes normally.
 - Emit `status: incomplete` for token budget, maximum turn, and other partial

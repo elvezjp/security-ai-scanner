@@ -33,6 +33,8 @@ class _ResultMessage:
     num_turns: int = 0
     duration_ms: int = 0
     total_cost_usd: float | None = None
+    subtype: str = "success"
+    terminal_reason: str | None = None
 
 
 class _Options:
@@ -110,3 +112,40 @@ class TestResultText:
         )
         result = _run(_request(structured_output=True))
         assert result.structured_output == payload
+
+    def test_partial_terminal_reason_is_preserved(self, monkeypatch):
+        payload = {"findings": [], "summary": "partial"}
+        _install_fake_sdk(
+            monkeypatch,
+            [
+                _ResultMessage(
+                    result="turn limit reached",
+                    structured_output=payload,
+                    is_error=True,
+                    terminal_reason="max_turns",
+                )
+            ],
+        )
+
+        result = _run(_request(structured_output=True))
+
+        assert result.is_error is False
+        assert result.stopped_reason == "max_turns"
+        assert result.structured_output == payload
+
+    def test_legacy_partial_subtype_is_normalized(self, monkeypatch):
+        _install_fake_sdk(
+            monkeypatch,
+            [
+                _ResultMessage(
+                    result="partial",
+                    is_error=True,
+                    subtype="error_max_budget_usd",
+                )
+            ],
+        )
+
+        result = _run(_request())
+
+        assert result.is_error is False
+        assert result.stopped_reason == "max_budget_usd"

@@ -12,7 +12,13 @@ from pathlib import Path
 from . import __version__
 from .config import SEVERITY_ORDER, ScanConfig
 from .engine import EngineResult, ScanRequest, get_engine
-from .exceptions import EngineError, FindingsParseError
+from .exceptions import (
+    EngineError,
+    FindingsParseError,
+    PublicationError,
+    ScannerError,
+    attach_published_summary,
+)
 from .findings import (
     FINDINGS_SCHEMA,
     ScanOutput,
@@ -222,6 +228,29 @@ def build_error_summary(
     }
 
 
+def publish_error_summary(
+    config: ScanConfig,
+    run: NativeRun,
+    publication: OutputPublication,
+    error: Exception,
+) -> dict | None:
+    """Best-effort commit of a schema-version-1 execution-error summary."""
+    summary = build_error_summary(
+        config,
+        run,
+        message=str(error) or type(error).__name__,
+    )
+    try:
+        publication.write_text(
+            "summary.json",
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        )
+    except PublicationError:
+        return None
+    attach_published_summary(error, summary)
+    return summary
+
+
 def evaluate_gate(output: ScanOutput, fail_on: str) -> bool:
     """True if any finding meets or exceeds the fail-on threshold."""
     return any(
@@ -235,58 +264,62 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
     timestamp = datetime.now(timezone.utc)
     run = create_native_run(config.target, generated_at=timestamp)
     with OutputPublication(config.output_dir, run.run_id) as publication:
-        engine = get_engine(config.engine)
+        try:
+            engine = get_engine(config.engine)
 
-        request = ScanRequest(
-            prompt=build_user_prompt(config),
-            system_prompt=load_scan_system_prompt(config.language),
-            cwd=config.target.resolve(),
-            output_schema=FINDINGS_SCHEMA,
-            model=config.model,
-            max_turns=config.max_turns,
-            max_total_tokens=config.max_total_tokens,
-            verbose=config.verbose,
-            base_url=config.base_url,
-            auth_token=config.auth_token,
-            structured_output=config.use_structured_output(),
-        )
-
-        engine_result = await engine.run(request)
-        if engine_result.is_error and engine_result.structured_output is None:
-            raise EngineError(
-                "Engine reported an error: "
-                f"{engine_result.error_message or 'unknown'}"
+            request = ScanRequest(
+                prompt=build_user_prompt(config),
+                system_prompt=load_scan_system_prompt(config.language),
+                cwd=config.target.resolve(),
+                output_schema=FINDINGS_SCHEMA,
+                model=config.model,
+                max_turns=config.max_turns,
+                max_total_tokens=config.max_total_tokens,
+                verbose=config.verbose,
+                base_url=config.base_url,
+                auth_token=config.auth_token,
+                structured_output=config.use_structured_output(),
             )
 
-        try:
-            output = _parse_engine_result(engine_result)
-        except FindingsParseError as exc:
-            raise FindingsParseError(
-                f"{exc} (engine={config.engine}, "
-                f"turns={engine_result.num_turns})"
-            ) from exc
+            engine_result = await engine.run(request)
+            if engine_result.is_error:
+                raise EngineError(
+                    "Engine reported an error: "
+                    f"{engine_result.error_message or 'unknown'}"
+                )
 
-        written = write_outputs(
-            config, output, run, publication, timestamp=timestamp
-        )
-        gate_failed = evaluate_gate(output, config.fail_on)
+            try:
+                output = _parse_engine_result(engine_result)
+            except FindingsParseError as exc:
+                raise FindingsParseError(
+                    f"{exc} (engine={config.engine}, "
+                    f"turns={engine_result.num_turns})"
+                ) from exc
 
-        summary = build_summary(
-            config, output, engine_result, written, gate_failed, run
-        )
-        summary_path = publication.write_text(
-            "summary.json",
-            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
-        )
-        written.append(summary_path)
+            written = write_outputs(
+                config, output, run, publication, timestamp=timestamp
+            )
+            gate_failed = evaluate_gate(output, config.fail_on)
 
-        return ScanResult(
-            output=output,
-            engine_result=engine_result,
-            written_files=written,
-            gate_failed=gate_failed,
-            summary=summary,
-        )
+            summary = build_summary(
+                config, output, engine_result, written, gate_failed, run
+            )
+            summary_path = publication.write_text(
+                "summary.json",
+                json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+            )
+            written.append(summary_path)
+
+            return ScanResult(
+                output=output,
+                engine_result=engine_result,
+                written_files=written,
+                gate_failed=gate_failed,
+                summary=summary,
+            )
+        except (ScannerError, ValueError) as exc:
+            publish_error_summary(config, run, publication, exc)
+            raise
 
 
 def run_scan(config: ScanConfig) -> ScanResult:
