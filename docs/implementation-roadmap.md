@@ -2,7 +2,7 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-Status: Active planning
+Status: Active implementation; S0 complete
 
 Last updated: 2026-08-25
 
@@ -22,7 +22,7 @@ conformance tests make the specification executable.
 | Phase | Deliverable | Primary repository |
 |---|---|---|
 | 0 | Common Result Interchange Specification | `quality-keeper` — complete |
-| 1 | Schemas and conformance fixtures | `quality-keeper` |
+| 1 | Schemas and conformance fixtures | `quality-keeper` — complete |
 | 2 | First schema-version-1 producer (`sais` 0.3.0) | `security-ai-scanner` |
 | 3 | Minimal native consumer validation | `quality-keeper` |
 | 4 | Vertical implementation of `cair` | `code-ai-reviewer` |
@@ -54,7 +54,7 @@ equivalents for offline tests.
 
 ## 4. Work packages
 
-### S0. Specification and release boundary
+### S0. Specification and release boundary — Complete
 
 - Update the product specification before changing emitted artifacts.
 - Declare 0.3.0 as the deliberate breaking boundary from the released 0.2.0
