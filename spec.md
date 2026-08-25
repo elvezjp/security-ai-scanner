@@ -186,6 +186,9 @@ identity and subject values.
   bytes.
 - The producer invalidates a stale summary before analysis, atomically replaces
   final artifacts, and publishes `summary.json` last as the completion marker.
+- On an execution error, `--json` writes the published error summary object to
+  stdout, or nothing when no summary could be published. Exit code 2 is
+  unchanged in both cases.
 
 ### 4.1 SARIF mapping
 
@@ -195,6 +198,30 @@ identity and subject values.
 - Paths use `uriBaseId: SRCROOT` relative to the scanned root.
 - Finding properties retain severity, confidence, and title; the run-local ID
   is stored in `partialFingerprints["sais/id"]`.
+
+### 4.3 Subject resolution
+
+The scanner resolves `subject` once before analysis and records the same
+object in both native artifacts.
+
+- `subject.root` is the resolved absolute path of the scan target.
+- `kind` is `git` when the scan target is inside a Git work tree and the `git`
+  executable is available; otherwise `kind` is `filesystem` with `head_sha`,
+  `base_sha`, and `dirty` all `null`.
+- Git is invoked without a shell, with a fixed executable and argument list.
+  Any subject-resolution failure falls back to `filesystem`; it never fails
+  the scan.
+- For `kind: git`, `head_sha` is the full object ID of the resolved `HEAD`
+  commit. `base_sha` is always `null` for a full scan and is reserved for the
+  diff-scan feature.
+- A repository whose `HEAD` is unborn (no commits) resolves as `filesystem`.
+- `dirty` is `true` when the scanned content differs from `HEAD` within the
+  scanned root: tracked files with uncommitted modifications, or untracked
+  files. The scanner reads the working tree, so untracked content contributes
+  to the analysis and counts as dirty.
+- `content_digest` is `null`. A full-repository scan defines no deterministic
+  content normalization, and the common specification forbids inventing a
+  digest.
 
 ## 5. CLI specification
 

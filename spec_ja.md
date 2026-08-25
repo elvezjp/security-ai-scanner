@@ -176,12 +176,16 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `total_tokens` はエンジンが使用量を計上できる場合の総トークン数
   （openai エンジン）。計上できないエンジンでは `null`
 - `stopped` は早期終了の理由（`"budget_exceeded"` / `"max_turns"`）。
-  通常完了時は `null`。非 null のとき所見は部分的である可能性がある
+  通常完了時は `null`。未知の将来の値を含め、非 null は部分的な出力を意味し、
+  したがって `status: incomplete` とする
 - `outputs`は実際に公開したsummary以外の成果物だけを含み、各要素に`path`、
   最終byte列の`sha256`、`bytes`を持つ。自己digestを格納できないため
   `summary.json`自身を含めない
 - producerは古いsummaryを実行開始前に無効化し、成果物をatomic replaceで公開し、
   完了マーカーである`summary.json`を最後に公開する
+- execution error時の`--json`は、公開できたerror summaryのobjectをstdoutへ
+  書き、summaryを公開できなかった場合は何も書かない。いずれの場合も
+  終了コード2は変わらない
 
 ### 4.1 SARIF マッピング
 
@@ -192,6 +196,28 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - ファイルパスは `uriBaseId: SRCROOT`（スキャン対象ルート）基準
 - ツール固有情報（severity・confidence・title）は result の
   `properties`、所見 ID は `partialFingerprints["sais/id"]` に格納
+
+### 4.3 Subjectの解決
+
+scannerは解析開始前に`subject`を一度だけ解決し、両native artifactへ同じ
+objectを記録する。
+
+- `subject.root`は、scan対象の解決済み絶対パスとする
+- scan対象がGit work tree内にあり`git`実行ファイルが利用できる場合、`kind`は
+  `git`とする。それ以外は`kind`を`filesystem`とし、`head_sha`・`base_sha`・
+  `dirty`をすべて`null`とする
+- Gitはshellを介さず、固定した実行ファイルとargument listで起動する。
+  subjectの解決に失敗した場合は`filesystem`へフォールバックし、scan自体を
+  失敗させない
+- `kind: git`では、`head_sha`は解決済み`HEAD` commitの完全なobject IDとする。
+  フルスキャンの`base_sha`は常に`null`とし、diff scan機能のために予約する
+- `HEAD`がunborn（コミットが存在しない）のリポジトリは`filesystem`として
+  解決する
+- `dirty`は、scan対象ルート配下の内容が`HEAD`と異なる場合に`true`とする:
+  未コミットの変更があるtracked file、またはuntracked file。scannerは
+  working treeを読むため、untrackedの内容も解析に寄与し、dirtyに数える
+- `content_digest`は`null`とする。フルリポジトリスキャンには決定論的な
+  内容正規化を定義せず、共通仕様はdigestの捏造を禁じている
 
 ## 5. CLI 仕様
 
