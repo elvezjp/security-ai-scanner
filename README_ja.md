@@ -40,6 +40,7 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 - [CONTRIBUTING_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING_ja.md) - コントリビューションガイド
 - [SECURITY_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY_ja.md) - セキュリティポリシー
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - 技術仕様書
+- [実装ロードマップ](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap_ja.md) - 製品群全体の順序と0.3.0適合計画
 - [ローカル LLM E2E 検証記録](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - 脆弱性を仕込んだフィクスチャでのローカルモデル実測結果
 
 ## インストール

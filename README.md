@@ -40,6 +40,7 @@ human-readable Markdown report.
 - [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING.md) - Contribution guidelines
 - [SECURITY.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY.md) - Security policy and best practices
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - Technical specification (Japanese)
+- [Implementation roadmap](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap.md) - Suite order and the 0.3.0 conformance plan
 - [Local LLM E2E verification](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - Measured results for local models on a planted-vulnerability fixture
 
 ## Installation
