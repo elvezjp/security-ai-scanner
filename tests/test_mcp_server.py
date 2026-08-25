@@ -1,6 +1,7 @@
 """Tests for the MCP server tools (no real MCP client, no real engine)."""
 
 import asyncio
+from pathlib import Path
 
 import pytest
 
@@ -77,8 +78,10 @@ class TestScanRepository:
         mock_engine([])
         result = asyncio.run(mcp_server.scan_repository(str(repo)))
         assert not (repo / "security-scan-results").exists()
-        for path in result["outputs"].values():
-            assert not path.startswith(str(repo))
+        for descriptor in result["outputs"].values():
+            path = Path(descriptor["path"])
+            assert not path.is_absolute()
+            assert str(repo) not in str(path)
 
     def test_scan_failure_raises_runtime_error(self, tmp_path, mock_engine):
         mock_engine([])

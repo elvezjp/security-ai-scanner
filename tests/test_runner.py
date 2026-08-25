@@ -134,8 +134,9 @@ class TestRunScan:
     def test_selected_formats_only(self, repo, tmp_path, mock_engine):
         mock_engine["result"] = _structured()
         result = run_scan(_config(repo, tmp_path, formats=("sarif",)))
-        # summary.json is always written regardless of --format
+        # Native JSON artifacts are mandatory; --format selects derived output.
         assert [p.name for p in result.written_files] == [
+            "findings.json",
             "findings.sarif",
             "summary.json",
         ]
@@ -197,8 +198,10 @@ class TestSummary:
             "findings.json",
             "findings.sarif",
             "report.md",
-            "summary.json",
         }
+        assert on_disk["schema_version"] == 1
+        assert on_disk["status"] == "completed"
+        assert on_disk["subject"]["root"] == str(repo.resolve())
 
     def test_clean_scan_summary_exit_zero(self, repo, tmp_path, mock_engine):
         mock_engine["result"] = _structured()
@@ -260,6 +263,7 @@ class TestSummaryEngineAccounting:
         result = run_scan(_config(repo, tmp_path))
         assert result.summary["total_tokens"] == 45678
         assert result.summary["stopped"] == "budget_exceeded"
+        assert result.summary["status"] == "incomplete"
 
     def test_summary_defaults_are_null_for_normal_runs(
         self, repo, tmp_path, mock_engine

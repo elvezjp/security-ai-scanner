@@ -49,6 +49,8 @@ test = [
     "pytest>=7.0.0",
     "pytest-cov>=4.0.0",
     "mcp>=1.2.0",
+    "jsonschema>=4.23,<5",
+    "rfc3339-validator>=0.1.4",
 ]
 
 [tool.hatch.build.targets.wheel]

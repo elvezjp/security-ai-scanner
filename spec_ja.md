@@ -207,6 +207,8 @@ objectを記録する。
   `git`とする。それ以外は`kind`を`filesystem`とし、`head_sha`・`base_sha`・
   `dirty`をすべて`null`とする
 - Gitはshellを介さず、固定した実行ファイルとargument listで起動する。
+  filesystem monitorとhookの実行を無効化し、リポジトリ識別先を変更し得る
+  環境変数overrideを無視する。
   subjectの解決に失敗した場合は`filesystem`へフォールバックし、scan自体を
   失敗させない
 - `kind: git`では、`head_sha`は解決済み`HEAD` commitの完全なobject IDとする。
@@ -244,6 +246,10 @@ sais scan TARGET [options]        # 短縮エイリアス
 | `--json` | false | 人向けサマリの代わりに §4.2 のサマリ JSON を stdout に出力（エージェント・スクリプト向け） |
 | `--notify-webhook` | なし | 完了・失敗時にサマリを POST する webhook URL（`SAIS_NOTIFY_WEBHOOK` でも指定可） |
 | `--notify-format` | `generic` | `generic`（サマリ JSON）/ `discord` / `slack`（incoming webhook 形式） |
+
+`findings.json`と`summary.json`は必須native artifactであり、completedまたは
+incompleteのrunでは常に公開する。`--format`は追加の派生成果物を選択し、
+CLI互換性のため`json`も引き続き受け付ける。
 
 ### 5.3 Webhook 通知
 

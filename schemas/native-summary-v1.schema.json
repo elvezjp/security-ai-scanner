@@ -1,0 +1,137 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/elvezjp/quality-keeper/schemas/native-summary-v1.schema.json",
+  "title": "Native result summary, schema version 1",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "run_id",
+    "tool",
+    "version",
+    "generated_at",
+    "subject",
+    "status",
+    "stopped",
+    "exit_code",
+    "counts",
+    "gate",
+    "duration_ms",
+    "total_tokens",
+    "cost_usd",
+    "outputs"
+  ],
+  "properties": {
+    "schema_version": {"const": 1},
+    "run_id": {"type": "string", "format": "uuid"},
+    "tool": {"enum": ["security-ai-scanner", "code-ai-reviewer"]},
+    "version": {"type": "string", "minLength": 1},
+    "generated_at": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "(?:Z|\\+00:00)$"
+    },
+    "subject": {"$ref": "#/$defs/subject"},
+    "status": {"enum": ["completed", "incomplete", "error"]},
+    "stopped": {"type": ["string", "null"], "minLength": 1},
+    "exit_code": {"enum": [0, 1, 2]},
+    "counts": {"$ref": "#/$defs/counts"},
+    "gate": {
+      "type": "object",
+      "required": ["fail_on", "failed"],
+      "properties": {
+        "fail_on": {"enum": ["critical", "high", "medium", "low", "info", "none"]},
+        "failed": {"type": "boolean"}
+      },
+      "additionalProperties": false
+    },
+    "duration_ms": {"type": ["integer", "null"], "minimum": 0},
+    "total_tokens": {"type": ["integer", "null"], "minimum": 0},
+    "cost_usd": {"type": ["number", "null"], "minimum": 0},
+    "outputs": {
+      "type": "object",
+      "properties": {
+        "findings.json": {"$ref": "#/$defs/output"},
+        "findings.sarif": {"$ref": "#/$defs/output"},
+        "report.md": {"$ref": "#/$defs/output"}
+      },
+      "additionalProperties": false
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"const": "completed"}}},
+      "then": {"properties": {
+        "stopped": {"type": "null"},
+        "exit_code": {"enum": [0, 1]},
+        "outputs": {"required": ["findings.json"]}
+      }}
+    },
+    {
+      "if": {"properties": {"status": {"const": "incomplete"}}},
+      "then": {"properties": {
+        "stopped": {"type": "string", "minLength": 1},
+        "exit_code": {"enum": [0, 1]},
+        "outputs": {"required": ["findings.json"]}
+      }}
+    },
+    {
+      "if": {"properties": {"status": {"const": "error"}}},
+      "then": {"properties": {"exit_code": {"const": 2}}}
+    }
+  ],
+  "$defs": {
+    "subject": {
+      "type": "object",
+      "required": ["kind", "root", "head_sha", "base_sha", "dirty", "content_digest"],
+      "properties": {
+        "kind": {"enum": ["git", "filesystem", "diff"]},
+        "root": {"type": "string", "minLength": 1},
+        "head_sha": {"anyOf": [
+          {"type": "null"},
+          {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"}
+        ]},
+        "base_sha": {"anyOf": [
+          {"type": "null"},
+          {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"}
+        ]},
+        "dirty": {"type": ["boolean", "null"]},
+        "content_digest": {"anyOf": [
+          {"type": "null"},
+          {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"}
+        ]}
+      },
+      "allOf": [{
+        "if": {"properties": {"kind": {"const": "git"}}},
+        "then": {"properties": {
+          "head_sha": {"type": "string", "pattern": "^(?:[0-9a-f]{40}|[0-9a-f]{64})$"},
+          "dirty": {"type": "boolean"}
+        }}
+      }],
+      "additionalProperties": true
+    },
+    "counts": {
+      "type": "object",
+      "required": ["critical", "high", "medium", "low", "info", "total"],
+      "properties": {
+        "critical": {"type": "integer", "minimum": 0},
+        "high": {"type": "integer", "minimum": 0},
+        "medium": {"type": "integer", "minimum": 0},
+        "low": {"type": "integer", "minimum": 0},
+        "info": {"type": "integer", "minimum": 0},
+        "total": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "output": {
+      "type": "object",
+      "required": ["path", "sha256", "bytes"],
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "bytes": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

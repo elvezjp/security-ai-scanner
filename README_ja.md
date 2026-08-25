@@ -81,6 +81,7 @@ security-ai-scanner scan path/to/repo
 - `findings.json`: 重要度・確度・CWE・該当箇所・推奨対応を含む構造化所見
 - `findings.sarif`: GitHub Code Scanning・SARIF ビューア向けの SARIF 2.1.0 ログ
 - `report.md`: 人が読むための Markdown レポート
+- `summary.json`: schema version 1の実行manifest兼完了マーカー
 
 終了コードは、`--fail-on` のしきい値以上の所見がなければ `0`、あれば `1`
 （CI ゲート）、エラー時は `2` です。
@@ -97,10 +98,13 @@ sais scan path/to/repo --language ja
 sais scan . --fail-on critical
 ```
 
-**SARIF のみを任意のディレクトリへ出力:**
+**SARIF派生成果物を任意のディレクトリへ出力:**
 ```bash
 sais scan . --format sarif -o ./out
 ```
+
+nativeの`findings.json`と`summary.json`は常に出力する。`--format`は追加の
+派生成果物を選択する。
 
 **スキャナに追加コンテキストを渡す（スコープや脅威モデルのメモ）:**
 ```bash
@@ -292,7 +296,7 @@ uv sync
 | `--language` | `en` | 所見・レポートの言語（`en` / `ja`） |
 | `--context` | - | スキャンへの追加コンテキスト |
 | `--fail-on` | `high` | CI ゲートのしきい値（`critical`/`high`/`medium`/`low`/`info`/`none`） |
-| `--format` | 全形式 | 出力形式。繰り返し指定可（`json`/`sarif`/`markdown`） |
+| `--format` | 全形式 | 追加の派生成果物。繰り返し指定可（`json`/`sarif`/`markdown`）。native JSONは常に出力 |
 | `--max-turns` | `100` | エージェントの最大ターン数 |
 | `--max-tokens` | 上限なし | スキャン全体のトークン予算（openai エンジン）。到達時は部分所見を保持して早期終了 |
 | `-v`, `--verbose` | false | エージェントの進行状況を stderr に表示 |
@@ -305,7 +309,7 @@ uv sync
 `sais` はコーディングエージェント（Claude Code・Codex・Cursor・VS Code の
 エージェント等）から扱いやすいよう設計されています：安定した終了コード、
 常に書き出される `summary.json`、stdout に1行 JSON を返す `--json`。
-エージェント向けの契約は [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) を参照してください。
+エージェント向けの仕様は [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) を参照してください。
 
 ### Claude Code スキル
 

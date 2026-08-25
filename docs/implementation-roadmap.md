@@ -2,7 +2,7 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-Status: Active implementation; S0 complete
+Status: Active implementation; S0-S1 complete
 
 Last updated: 2026-08-25
 
@@ -66,7 +66,7 @@ equivalents for offline tests.
 Completion condition: the English and Japanese specifications describe the
 same 0.3.0 behavior and link to the common interchange specification.
 
-### S1. Run identity and native models
+### S1. Run identity and native models — Complete
 
 - Add `schema_version`, UUID `run_id`, `generated_at`, `status`, and `subject`.
 - Resolve full Git object IDs when the target is a Git repository.
