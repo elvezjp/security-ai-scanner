@@ -451,7 +451,7 @@ security-ai-scanner/
 
 ### P1 — 汎用プロダクトとしての厚み
 
-- **第2エンジン** — Claude 以外のアダプタでエンジン非依存コアを実証（[#7](https://github.com/elvezjp/security-ai-scanner/issues/7)）
+- **完了：第2エンジン** — OpenAI 互換アダプタにより、Claude に限定されないエンジン非依存コアを実証済み（[#7](https://github.com/elvezjp/security-ai-scanner/issues/7)、[#17](https://github.com/elvezjp/security-ai-scanner/pull/17)）
 - **スキャンプロファイル** — 手法プロンプトの差し替え（既定 `security`＋少数の汎用プロファイル。組織固有チェックリストは公開コアにハードコードしない）（[#8](https://github.com/elvezjp/security-ai-scanner/issues/8)）
 - **バッチスキャン** — 複数ルートの直列実行と `batch-summary.json`（当面は `sais scan` のループで各 `summary.json` を読む）（[#9](https://github.com/elvezjp/security-ai-scanner/issues/9)）
 - **ローカル LLM 運用の強化** — コンテキスト枯渇時の明示エラー、単一セッション向け直列の案内（[#10](https://github.com/elvezjp/security-ai-scanner/issues/10)）
