@@ -25,8 +25,8 @@ from security_ai_scanner.native import NativeRun, Subject  # noqa: E402
 import security_ai_scanner.runner as runner  # noqa: E402
 
 
-OUTPUT_ROOT = ROOT / "tests" / "fixtures" / "sais-v1-release-candidate"
-FIXTURE_VERSION = "0.3.0-dev"
+OUTPUT_ROOT = ROOT / "tests" / "fixtures" / "sais-v1-0.3.0"
+FIXTURE_VERSION = "0.3.0"
 GENERATED_AT = "2026-08-25T00:00:00Z"
 RUN_IDS = {
     "completed": "d7481457-56c3-593a-a486-3d2e713c80c4",
@@ -42,7 +42,7 @@ SUBJECT = Subject(
     content_digest=None,
 )
 FINDING = {
-    "title": "Release-candidate fixture finding",
+    "title": "Version-pinned fixture finding",
     "severity": "high",
     "confidence": "high",
     "file": "src/example.py",
@@ -130,7 +130,7 @@ def generate_case(status: str, temporary_root: Path) -> dict[str, bytes]:
             {
                 "description": (
                     "Schema-version-1 security-ai-scanner "
-                    f"{status} release-candidate artifacts."
+                    f"{status} version-pinned artifacts."
                 ),
                 "valid": True,
             }

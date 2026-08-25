@@ -87,6 +87,10 @@ security-ai-scanner scan path/to/repo
 確定します。`.sais.lock`により同時書き込みを拒否します。中断したprocessがlockを
 残した場合は、実行中のscanがないことを確認してから削除してください。
 
+0.3.0ではnative artifactのschema version 1を導入する。これは0.2.0からの意図的な
+破壊的変更である。consumerは`schema_version`を検証し、0.2.0の`summary.json`や
+`findings.json`をschema version 1として解釈してはならない。
+
 終了コードは、`--fail-on` のしきい値以上の所見がなければ `0`、あれば `1`
 （CI ゲート）、エラー時は `2` です。
 
@@ -385,7 +389,7 @@ sais scan . --notify-webhook "$DISCORD_WEBHOOK_URL" --notify-format discord
 出力：`sarif-file`・`summary-file`・`exit-code`。
 
 この action は既定で PyPI の最新版スキャナーをインストールします。
-CI の再現性が必要な場合は `version: "0.2.0"` のように固定してください。
+CI の再現性が必要な場合は `version: "0.3.0"` のように固定してください。
 action の参照タグを固定してもスキャナー本体は固定されません。
 
 ## 動作の仕組み

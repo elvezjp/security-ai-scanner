@@ -89,6 +89,10 @@ Artifacts are atomically committed within one output directory, with
 If an interrupted process leaves the lock behind, confirm that no scan is
 active before removing it.
 
+Version 0.3.0 introduces native artifact schema version 1 as a deliberate
+breaking change from 0.2.0. Consumers must validate `schema_version` and must
+not interpret 0.2.0 `summary.json` or `findings.json` files as schema version 1.
+
 The exit code is `0` when no finding meets the `--fail-on` threshold,
 `1` when one does (CI gate), and `2` on errors.
 
@@ -388,7 +392,7 @@ Inputs: `target`, `fail-on`, `language`, `output-dir`, `version`,
 `extra-args`. Outputs: `sarif-file`, `summary-file`, `exit-code`.
 
 By default the action installs the latest scanner release from PyPI.
-For reproducible CI runs, pin it with `version: "0.2.0"` — pinning the
+For reproducible CI runs, pin it with `version: "0.3.0"` — pinning the
 action reference alone does not pin the scanner itself.
 
 ## How It Works

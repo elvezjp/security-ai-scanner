@@ -2,7 +2,7 @@
 
 [English](spec.md) | [日本語](spec_ja.md)
 
-Version: 0.3.0 draft / Last updated: 2026-08-25
+Version: 0.3.0 / Last updated: 2026-08-25
 
 This document defines the technical specification of `security-ai-scanner`.
 See `README.md` for user-facing instructions.

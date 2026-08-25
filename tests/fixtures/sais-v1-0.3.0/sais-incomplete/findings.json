@@ -2,7 +2,7 @@
   "schema_version": 1,
   "run_id": "e4fba3fc-4c9f-55a2-b21f-f21f69d9bf0d",
   "tool": "security-ai-scanner",
-  "version": "0.3.0-dev",
+  "version": "0.3.0",
   "generated_at": "2026-08-25T00:00:00Z",
   "subject": {
     "kind": "git",
@@ -16,7 +16,7 @@
   "files_reviewed": 1,
   "findings": [
     {
-      "title": "Release-candidate fixture finding",
+      "title": "Version-pinned fixture finding",
       "severity": "high",
       "confidence": "high",
       "file": "src/example.py",
