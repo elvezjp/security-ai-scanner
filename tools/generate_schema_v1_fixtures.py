@@ -163,7 +163,7 @@ def generated_files() -> dict[str, bytes]:
 
 def check(files: dict[str, bytes]) -> bool:
     actual = {
-        str(path.relative_to(OUTPUT_ROOT)): path.read_bytes()
+        path.relative_to(OUTPUT_ROOT).as_posix(): path.read_bytes()
         for path in OUTPUT_ROOT.rglob("*")
         if path.is_file()
     } if OUTPUT_ROOT.exists() else {}
