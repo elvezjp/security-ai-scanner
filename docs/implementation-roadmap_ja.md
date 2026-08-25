@@ -2,7 +2,7 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-状態: 実装進行中・S0完了
+状態: 実装進行中・S0〜S1完了
 
 最終更新: 2026-08-25
 
@@ -64,7 +64,7 @@
 完了条件: 英語版と日本語版の仕様が同じ0.3.0の振る舞いを記述し、共通成果物
 連携仕様を参照している。
 
-### S1. 実行識別情報とnative model
+### S1. 実行識別情報とnative model — 完了
 
 - `schema_version`、UUID `run_id`、`generated_at`、`status`、`subject`を追加する。
 - 解析対象がGitリポジトリの場合、完全なGit object IDを解決する。

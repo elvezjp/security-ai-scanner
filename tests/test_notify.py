@@ -8,7 +8,7 @@ from security_ai_scanner.notify import build_payload, send_notification
 
 SUMMARY = {
     "tool": "security-ai-scanner",
-    "target": "/repo",
+    "subject": {"root": "/repo"},
     "counts": {"critical": 0, "high": 2, "medium": 0, "low": 0, "info": 1,
                "total": 3},
     "gate": {"fail_on": "high", "failed": True},
@@ -37,6 +37,7 @@ class TestBuildPayload:
         assert "3 finding(s)" in payload["content"]
         assert "high 2" in payload["content"]
         assert "gate FAILED" in payload["content"]
+        assert "/repo" in payload["content"]
 
     def test_slack_message_shape(self):
         payload = build_payload("slack", SUMMARY)

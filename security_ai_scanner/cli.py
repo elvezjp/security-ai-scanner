@@ -127,7 +127,8 @@ def build_parser() -> argparse.ArgumentParser:
         choices=OUTPUT_FORMATS,
         default=None,
         help=(
-            "Output format; repeatable (default: all of "
+            "Additional derived output; repeatable (native findings.json and "
+            "summary.json are always written; default: all of "
             + ", ".join(OUTPUT_FORMATS)
             + ")"
         ),

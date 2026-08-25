@@ -82,6 +82,7 @@ This generates, under `./security-scan-results/`:
 - `findings.json`: Structured findings with severity, confidence, CWE, evidence, and recommendations
 - `findings.sarif`: SARIF 2.1.0 log for GitHub Code Scanning and SARIF viewers
 - `report.md`: Human-readable Markdown report
+- `summary.json`: Schema-version-1 run manifest and completion marker
 
 The exit code is `0` when no finding meets the `--fail-on` threshold,
 `1` when one does (CI gate), and `2` on errors.
@@ -98,10 +99,13 @@ sais scan path/to/repo --language ja
 sais scan . --fail-on critical
 ```
 
-**SARIF only, into a custom directory:**
+**SARIF derived output, into a custom directory:**
 ```bash
 sais scan . --format sarif -o ./out
 ```
+
+The native `findings.json` and `summary.json` are always written. `--format`
+selects additional derived outputs.
 
 **Give the scanner extra context (scope, threat model notes):**
 ```bash
@@ -293,7 +297,7 @@ See [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/C
 | `--language` | `en` | Language for findings and report (`en` / `ja`) |
 | `--context` | - | Extra security context for the scan |
 | `--fail-on` | `high` | CI gate threshold (`critical`/`high`/`medium`/`low`/`info`/`none`) |
-| `--format` | All | Output format, repeatable (`json`/`sarif`/`markdown`) |
+| `--format` | All | Additional derived output, repeatable (`json`/`sarif`/`markdown`); native JSON is always written |
 | `--max-turns` | `100` | Maximum agent turns |
 | `--max-tokens` | No cap | Total-token budget for the scan (openai engine); stops early with partial findings |
 | `-v`, `--verbose` | false | Stream agent progress to stderr |
@@ -306,7 +310,7 @@ See [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/C
 `sais` is designed to be easy for coding agents (Claude Code, Codex, Cursor,
 VS Code agents, ...) to drive: stable exit codes, a machine-readable
 `summary.json` (always written), and `--json` for a single-line JSON summary
-on stdout. See [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) for the agent-facing contract.
+on stdout. See [AGENTS.md](https://github.com/elvezjp/security-ai-scanner/blob/main/AGENTS.md) for the agent-facing specification.
 
 ### Claude Code skill
 

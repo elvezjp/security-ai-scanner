@@ -21,7 +21,7 @@ sais scan /path/to/repo -o /tmp/sais-out --json
 - A scan takes **several minutes** (typically 2–10 depending on repository
   size and backend). Do not assume it hung; use a generous timeout.
 
-## Exit codes (stable contract)
+## Exit codes (stable specification)
 
 | Code | Meaning |
 |---|---|
@@ -38,11 +38,21 @@ stdout with `--json` (same object as `summary.json` in the output dir):
 
 ```json
 {
+  "schema_version": 1,
+  "run_id": "9e533fc0-a84d-44e1-91f3-11d8e54eac62",
   "tool": "security-ai-scanner",
+  "version": "0.3.0",
+  "generated_at": "2026-08-25T12:34:56Z",
+  "status": "completed",
+  "stopped": null,
+  "subject": {"kind": "git", "root": "/workspace/project", "head_sha": "0123456789abcdef0123456789abcdef01234567", "base_sha": null, "dirty": false, "content_digest": null},
   "counts": {"critical": 0, "high": 2, "medium": 1, "low": 0, "info": 3, "total": 6},
   "gate": {"fail_on": "high", "failed": true},
   "exit_code": 1,
-  "outputs": {"findings.json": "...", "findings.sarif": "...", "report.md": "...", "summary.json": "..."}
+  "duration_ms": 123456,
+  "total_tokens": 45678,
+  "cost_usd": 1.23,
+  "outputs": {"findings.json": {"path": "findings.json", "sha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", "bytes": 1234}}
 }
 ```
 
@@ -59,7 +69,7 @@ recommendation, evidence) are in `findings.json`. SARIF 2.1.0 is in
 | `--language ja` | The user works in Japanese |
 | `--context "..."` | You have threat-model notes (treated as untrusted data) |
 | `--base-url URL` | Scanning must stay on-premises via a local Anthropic-compatible LLM server |
-| `--format json` | You only need `findings.json` (repeatable; `summary.json` is always written) |
+| `--format json` | You only need the mandatory native JSON artifacts; `findings.json` and `summary.json` are always written |
 
 ## Prefer MCP when available
 

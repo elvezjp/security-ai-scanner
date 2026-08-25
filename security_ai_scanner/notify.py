@@ -42,10 +42,9 @@ def _human_line(summary: dict[str, Any]) -> str:
     else:
         status = "gate passed"
     detail = f" ({breakdown})" if breakdown else ""
-    return (
-        f"sais scan of {summary.get('target')}: "
-        f"{total} finding(s){detail} — {status}"
-    )
+    subject = summary.get("subject", {})
+    target = subject.get("root") or summary.get("target")
+    return f"sais scan of {target}: {total} finding(s){detail} — {status}"
 
 
 def _error_line(target: str, message: str) -> str:

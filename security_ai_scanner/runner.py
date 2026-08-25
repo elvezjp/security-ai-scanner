@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -19,6 +20,7 @@ from .findings import (
     parse_scan_output,
     parse_text_output,
 )
+from .native import NativeRun, create_native_run
 from .prompts import load_scan_system_prompt
 from .report import ReportMeta, render_markdown
 from .sarif import to_sarif
@@ -93,26 +95,27 @@ def _parse_engine_result(engine_result: EngineResult) -> ScanOutput:
 
 
 def write_outputs(
-    config: ScanConfig, output: ScanOutput, *, timestamp: datetime | None = None
+    config: ScanConfig,
+    output: ScanOutput,
+    run: NativeRun,
+    *,
+    timestamp: datetime | None = None,
 ) -> list[Path]:
     """Write the requested output formats. Returns written file paths."""
     config.output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
-    if "json" in config.formats:
-        path = config.output_dir / "findings.json"
-        payload = {
-            "tool": TOOL_NAME,
-            "version": __version__,
-            "target": str(config.target),
-            "summary": output.summary,
-            "files_reviewed": output.files_reviewed,
-            "findings": [finding.to_dict() for finding in output.findings],
-        }
-        path.write_text(
-            json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "utf-8"
-        )
-        written.append(path)
+    path = config.output_dir / "findings.json"
+    payload = {
+        **run.metadata(tool=TOOL_NAME, version=__version__),
+        "summary": output.summary,
+        "files_reviewed": output.files_reviewed,
+        "findings": [finding.to_dict() for finding in output.findings],
+    }
+    path.write_text(
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "utf-8"
+    )
+    written.append(path)
 
     if "sarif" in config.formats:
         path = config.output_dir / "findings.sarif"
@@ -155,20 +158,21 @@ def build_summary(
     engine_result: EngineResult,
     written_files: list[Path],
     gate_failed: bool,
+    run: NativeRun,
 ) -> dict:
     """Build the machine-readable run summary.
 
-    The shape is part of the public contract (spec.md §4.2): agents and CI
+    The shape is part of the public specification (spec.md §4.2): agents and CI
     scripts parse it from summary.json or from ``sais scan --json`` stdout.
     """
-    outputs = {path.name: str(path) for path in written_files}
+    outputs = {path.name: describe_output(path) for path in written_files}
     # A self-hosted endpoint bills nothing, so the engine's token-derived
     # estimate would be misleading there (same rule as the CLI display).
     cost = None if config.base_url else engine_result.total_cost_usd
+    stopped = engine_result.stopped_reason
     return {
-        "tool": TOOL_NAME,
-        "version": __version__,
-        "target": str(config.target),
+        **run.metadata(tool=TOOL_NAME, version=__version__),
+        "status": "incomplete" if stopped is not None else "completed",
         "engine": config.engine,
         "summary": output.summary,
         "counts": severity_counts(output),
@@ -180,8 +184,40 @@ def build_summary(
         "total_tokens": engine_result.total_tokens,
         # Why the scan stopped early ("budget_exceeded", "max_turns"), or
         # null for a normal completion. Findings may be partial when set.
-        "stopped": engine_result.stopped_reason,
+        "stopped": stopped,
         "outputs": outputs,
+    }
+
+
+def describe_output(path: Path) -> dict[str, str | int]:
+    """Describe the final bytes of one non-summary artifact."""
+    content = path.read_bytes()
+    return {
+        "path": path.name,
+        "sha256": hashlib.sha256(content).hexdigest(),
+        "bytes": len(content),
+    }
+
+
+def build_error_summary(
+    config: ScanConfig,
+    run: NativeRun,
+    *,
+    message: str,
+) -> dict:
+    """Build a schema-version-1 error object for S3 publication handling."""
+    return {
+        **run.metadata(tool=TOOL_NAME, version=__version__),
+        "status": "error",
+        "stopped": None,
+        "exit_code": 2,
+        "counts": severity_counts(ScanOutput(findings=[])),
+        "gate": {"fail_on": config.fail_on, "failed": False},
+        "duration_ms": None,
+        "total_tokens": None,
+        "cost_usd": None,
+        "outputs": {},
+        "error": message,
     }
 
 
@@ -195,6 +231,8 @@ def evaluate_gate(output: ScanOutput, fail_on: str) -> bool:
 async def run_scan_async(config: ScanConfig) -> ScanResult:
     """Run one scan end to end."""
     config.validate()
+    timestamp = datetime.now(timezone.utc)
+    run = create_native_run(config.target, generated_at=timestamp)
     engine = get_engine(config.engine)
 
     request = ScanRequest(
@@ -224,14 +262,12 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
             f"{exc} (engine={config.engine}, turns={engine_result.num_turns})"
         ) from exc
 
-    written = write_outputs(
-        config, output, timestamp=datetime.now(timezone.utc)
-    )
+    written = write_outputs(config, output, run, timestamp=timestamp)
     gate_failed = evaluate_gate(output, config.fail_on)
 
     summary_path = config.output_dir / "summary.json"
     summary = build_summary(
-        config, output, engine_result, written + [summary_path], gate_failed
+        config, output, engine_result, written, gate_failed, run
     )
     summary_path.write_text(
         json.dumps(summary, ensure_ascii=False, indent=2) + "\n", "utf-8"

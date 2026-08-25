@@ -209,6 +209,8 @@ object in both native artifacts.
   executable is available; otherwise `kind` is `filesystem` with `head_sha`,
   `base_sha`, and `dirty` all `null`.
 - Git is invoked without a shell, with a fixed executable and argument list.
+  Filesystem-monitor and hook execution are disabled, and environment overrides
+  that could redirect repository identity are ignored.
   Any subject-resolution failure falls back to `filesystem`; it never fails
   the scan.
 - For `kind: git`, `head_sha` is the full object ID of the resolved `HEAD`
@@ -248,6 +250,10 @@ sais scan TARGET [options]
 | `--json` | false | Write the Section 4.2 summary to stdout |
 | `--notify-webhook` | None | Completion or error webhook; `SAIS_NOTIFY_WEBHOOK` is also accepted |
 | `--notify-format` | `generic` | `generic`, `discord`, or `slack` |
+
+`findings.json` and `summary.json` are mandatory native artifacts and are
+always published for a completed or incomplete run. `--format` selects the
+additional derived outputs; `json` remains accepted for CLI compatibility.
 
 ### 5.3 Webhook notification
 
