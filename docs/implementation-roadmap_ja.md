@@ -125,6 +125,31 @@ version 1に適合する。
 完了条件: 0.3.0のrelease artifactと文書が一致し、後続のsource commitが不変の
 ものとして記録されている。
 
+### S6. 人間向けreportの受け入れ（0.3以降のfollow-up）
+
+この作業パッケージは
+[Issue #23](https://github.com/elvezjp/security-ai-scanner/issues/23)で採用した
+計画を取り込む。S5の後に開始し、`quality-keeper`へのschema version 1引き渡しを
+遅らせない。
+
+- 出力変更に先立ち、英語版と日本語版の製品仕様へ同じ`report.md`構造を定める。
+- 最初の詳細findingより前に、local gateの判定、重要度別件数、最重要の対応可能な
+  findingを置く。「最初の1画面」のようにviewerへ依存する表現は、この構造順で
+  置き換える。
+- findingを重要度、fileの順に並べ、`file:line`参照を表示する。推測せず安定した
+  source URLを導出できる場合だけlinkにし、それ以外は曖昧さのないplainな参照を
+  維持する。
+- 実装前にevidenceの明示的な行数または文字数上限と、見えるtruncation markerを
+  定める。
+- 決定論的なreport skeletonを英語・日本語のgolden-file testで固定し、LLM生成の
+  散文内容はassertしない。
+- Issue #11のbenchmarkへ、具体的なinput-to-impact説明、実行可能な推奨、日本語の
+  可読性を人間が評価するanchor付きrubricを追加する。各dimensionを固定0〜2点で
+  採点し、model、language、prompt version、評価者noteを結果ごとに記録する。
+
+完了条件: 両言語のreport skeletonがgolden-file testをpassし、文書化したmodel群に
+ついて両出力言語の人間採点済み散文結果が公開されている。
+
 ## 5. 実装規律
 
 - schema version 1適合と無関係な製品機能を同じ実装変更へ含めない。
@@ -138,4 +163,5 @@ version 1に適合する。
 
 S5の後、`quality-keeper`は実際の`sais`出力に対する最小native consumer経路を
 実装・検証する。その経路がpassした後にだけ、`code-ai-reviewer`は記録済みの
-source commitから縦実装を開始する。
+source commitから縦実装を開始する。S6は共通の機械可読仕様を再度開くことなく、
+0.3以降の独立した品質trackとして進められる。

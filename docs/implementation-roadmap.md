@@ -131,6 +131,33 @@ completed and incomplete schema-version-1 fixtures are ready for `qk`.
 Completion condition: the 0.3.0 release artifacts and documentation agree, and
 the downstream source commit is immutable and recorded.
 
+### S6. Human-facing report acceptance (post-0.3 follow-up)
+
+This work package incorporates the accepted plan from
+[Issue #23](https://github.com/elvezjp/security-ai-scanner/issues/23). It starts
+after S5 and does not delay the schema-version-1 handoff to `quality-keeper`.
+
+- Before changing output, specify the same `report.md` structure in the English
+  and Japanese product specifications.
+- Put the local gate verdict, severity counts, and highest-severity actionable
+  findings before the first full finding detail; this structural order replaces
+  viewer-dependent wording such as "the first screen."
+- Order findings by severity and then file, and render `file:line` references.
+  Make them links only when a stable source URL can be derived without guessing;
+  otherwise retain unambiguous plain references.
+- Define an explicit evidence line or character limit and a visible truncation
+  marker before implementation.
+- Use English and Japanese golden-file tests for the deterministic report
+  skeleton without asserting LLM-generated prose.
+- Extend the benchmark in Issue #11 with an anchored human-scored rubric for
+  concrete input-to-impact descriptions, actionable recommendations, and
+  readable Japanese. Use a fixed 0-2 scale per dimension and record model,
+  language, prompt version, and evaluator notes with each result.
+
+Completion condition: both report skeletons pass golden-file tests, and the
+documented model set has published human-scored prose results in both output
+languages.
+
 ## 5. Implementation discipline
 
 - Do not add product features unrelated to schema-version-1 conformance in the
@@ -147,4 +174,5 @@ the downstream source commit is immutable and recorded.
 After S5, `quality-keeper` implements and verifies the minimal native consumer
 path against real `sais` output. Only after that path passes does
 `code-ai-reviewer` begin its vertical implementation from the recorded source
-commit.
+commit. S6 may proceed as an independent post-0.3 quality track without
+reopening the common machine-readable specification.
