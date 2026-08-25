@@ -22,6 +22,7 @@ from .findings import (
 )
 from .native import NativeRun, create_native_run
 from .prompts import load_scan_system_prompt
+from .publication import OutputPublication
 from .report import ReportMeta, render_markdown
 from .sarif import to_sarif
 
@@ -98,45 +99,45 @@ def write_outputs(
     config: ScanConfig,
     output: ScanOutput,
     run: NativeRun,
+    publication: OutputPublication,
     *,
     timestamp: datetime | None = None,
 ) -> list[Path]:
     """Write the requested output formats. Returns written file paths."""
-    config.output_dir.mkdir(parents=True, exist_ok=True)
     written: list[Path] = []
 
-    path = config.output_dir / "findings.json"
     payload = {
         **run.metadata(tool=TOOL_NAME, version=__version__),
         "summary": output.summary,
         "files_reviewed": output.files_reviewed,
         "findings": [finding.to_dict() for finding in output.findings],
     }
-    path.write_text(
-        json.dumps(payload, ensure_ascii=False, indent=2) + "\n", "utf-8"
+    path = publication.write_text(
+        "findings.json",
+        json.dumps(payload, ensure_ascii=False, indent=2) + "\n",
     )
     written.append(path)
 
     if "sarif" in config.formats:
-        path = config.output_dir / "findings.sarif"
         sarif = to_sarif(
             output.findings,
             tool_name=TOOL_NAME,
             tool_version=__version__,
             info_uri=INFO_URI,
         )
-        path.write_text(
-            json.dumps(sarif, ensure_ascii=False, indent=2) + "\n", "utf-8"
+        path = publication.write_text(
+            "findings.sarif",
+            json.dumps(sarif, ensure_ascii=False, indent=2) + "\n",
         )
         written.append(path)
 
     if "markdown" in config.formats:
-        path = config.output_dir / "report.md"
         meta = ReportMeta(
             target=str(config.target), engine=config.engine, timestamp=timestamp
         )
-        path.write_text(
-            render_markdown(output, meta, language=config.language), "utf-8"
+        path = publication.write_text(
+            "report.md",
+            render_markdown(output, meta, language=config.language),
         )
         written.append(path)
 
@@ -233,54 +234,59 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
     config.validate()
     timestamp = datetime.now(timezone.utc)
     run = create_native_run(config.target, generated_at=timestamp)
-    engine = get_engine(config.engine)
+    with OutputPublication(config.output_dir, run.run_id) as publication:
+        engine = get_engine(config.engine)
 
-    request = ScanRequest(
-        prompt=build_user_prompt(config),
-        system_prompt=load_scan_system_prompt(config.language),
-        cwd=config.target.resolve(),
-        output_schema=FINDINGS_SCHEMA,
-        model=config.model,
-        max_turns=config.max_turns,
-        max_total_tokens=config.max_total_tokens,
-        verbose=config.verbose,
-        base_url=config.base_url,
-        auth_token=config.auth_token,
-        structured_output=config.use_structured_output(),
-    )
-
-    engine_result = await engine.run(request)
-    if engine_result.is_error and engine_result.structured_output is None:
-        raise EngineError(
-            f"Engine reported an error: {engine_result.error_message or 'unknown'}"
+        request = ScanRequest(
+            prompt=build_user_prompt(config),
+            system_prompt=load_scan_system_prompt(config.language),
+            cwd=config.target.resolve(),
+            output_schema=FINDINGS_SCHEMA,
+            model=config.model,
+            max_turns=config.max_turns,
+            max_total_tokens=config.max_total_tokens,
+            verbose=config.verbose,
+            base_url=config.base_url,
+            auth_token=config.auth_token,
+            structured_output=config.use_structured_output(),
         )
 
-    try:
-        output = _parse_engine_result(engine_result)
-    except FindingsParseError as exc:
-        raise FindingsParseError(
-            f"{exc} (engine={config.engine}, turns={engine_result.num_turns})"
-        ) from exc
+        engine_result = await engine.run(request)
+        if engine_result.is_error and engine_result.structured_output is None:
+            raise EngineError(
+                "Engine reported an error: "
+                f"{engine_result.error_message or 'unknown'}"
+            )
 
-    written = write_outputs(config, output, run, timestamp=timestamp)
-    gate_failed = evaluate_gate(output, config.fail_on)
+        try:
+            output = _parse_engine_result(engine_result)
+        except FindingsParseError as exc:
+            raise FindingsParseError(
+                f"{exc} (engine={config.engine}, "
+                f"turns={engine_result.num_turns})"
+            ) from exc
 
-    summary_path = config.output_dir / "summary.json"
-    summary = build_summary(
-        config, output, engine_result, written, gate_failed, run
-    )
-    summary_path.write_text(
-        json.dumps(summary, ensure_ascii=False, indent=2) + "\n", "utf-8"
-    )
-    written.append(summary_path)
+        written = write_outputs(
+            config, output, run, publication, timestamp=timestamp
+        )
+        gate_failed = evaluate_gate(output, config.fail_on)
 
-    return ScanResult(
-        output=output,
-        engine_result=engine_result,
-        written_files=written,
-        gate_failed=gate_failed,
-        summary=summary,
-    )
+        summary = build_summary(
+            config, output, engine_result, written, gate_failed, run
+        )
+        summary_path = publication.write_text(
+            "summary.json",
+            json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        )
+        written.append(summary_path)
+
+        return ScanResult(
+            output=output,
+            engine_result=engine_result,
+            written_files=written,
+            gate_failed=gate_failed,
+            summary=summary,
+        )
 
 
 def run_scan(config: ScanConfig) -> ScanResult:

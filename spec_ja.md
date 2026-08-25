@@ -181,8 +181,15 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `outputs`は実際に公開したsummary以外の成果物だけを含み、各要素に`path`、
   最終byte列の`sha256`、`bytes`を持つ。自己digestを格納できないため
   `summary.json`自身を含めない
-- producerは古いsummaryを実行開始前に無効化し、成果物をatomic replaceで公開し、
-  完了マーカーである`summary.json`を最後に公開する
+- producerは古いsummaryを実行開始前に無効化し、成果物をatomic replaceで
+  安全に一括確定し、完了マーカーである`summary.json`を最後に確定する
+- summaryを無効化する前に、producerはoutput directory内の`.sais.lock`を
+  排他的に作成し、確定処理が終わるまで保持する。lockが既に存在する場合は、
+  既存成果物を変更せずrunを失敗させる。中断したprocessが残したlockは自動削除
+  せず、実行中のwriterがいないことを確認したoperatorだけが削除する
+- 各成果物は、まず出力先と同じfilesystem上の一意な一時ファイルへ完全なbyte列を
+  書き込み、flushしてからatomic replaceする。置換に失敗した場合は、そのrunの
+  一時ファイルを削除する。lock fileと一時ファイルは成果物ではなく制御用データとする
 - execution error時の`--json`は、公開できたerror summaryのobjectをstdoutへ
   書き、summaryを公開できなかった場合は何も書かない。いずれの場合も
   終了コード2は変わらない

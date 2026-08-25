@@ -61,6 +61,11 @@ recommendation, evidence) are in `findings.json`. SARIF 2.1.0 is in
 `findings.sarif` for GitHub Code Scanning. A human-readable report is in
 `report.md` (`--language ja` for Japanese).
 
+Treat `summary.json` as the completion marker: if it is missing, do not treat
+remaining artifacts as one completed run. A `.sais.lock` file means another
+writer may be active; never remove it without first confirming that no scan is
+using the output directory.
+
 ## Useful options
 
 | Option | Use when |
