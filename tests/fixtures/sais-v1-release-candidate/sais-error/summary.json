@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "run_id": "fbcc6f2e-4c8c-573b-9258-9b97251fd502",
+  "tool": "security-ai-scanner",
+  "version": "0.3.0-dev",
+  "generated_at": "2026-08-25T00:00:00Z",
+  "subject": {
+    "kind": "git",
+    "root": "/workspace/project",
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "base_sha": null,
+    "dirty": false,
+    "content_digest": null
+  },
+  "status": "error",
+  "stopped": null,
+  "exit_code": 2,
+  "counts": {
+    "critical": 0,
+    "high": 0,
+    "medium": 0,
+    "low": 0,
+    "info": 0,
+    "total": 0
+  },
+  "gate": {
+    "fail_on": "none",
+    "failed": false
+  },
+  "duration_ms": null,
+  "total_tokens": null,
+  "cost_usd": null,
+  "outputs": {},
+  "error": "Engine reported an error: fixture engine failure"
+}

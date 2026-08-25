@@ -1,0 +1,19 @@
+{
+  "repository": "https://github.com/elvezjp/quality-keeper",
+  "commit": "7dfccff2f8dcd342071072545aac86a155ddd044",
+  "source": "conformance/fixtures/valid/sais-*",
+  "schema_canonical_json_sha256": {
+    "native-findings-v1.schema.json": "438cbb226e80180ab1e14ee349aaabdc33bed4a5a69e24b2adc95425637fb798",
+    "native-summary-v1.schema.json": "feb5982efb47882e8c4940f4d010e4fb46edcb911f91257ac87e314bb0861922"
+  },
+  "files": {
+    "sais-completed/expectation.json": "7d9073def5622ce01c81d2dc888352326cb3013aa59c7dd8ff4445fd1bddf0d3",
+    "sais-completed/findings.json": "e5f036b9d118c25fc6de14ba9fbf4202d66749f20eb0e24acf1302c71a618dd9",
+    "sais-completed/summary.json": "2a5c19cf7271e7b203d34f4be0af907d76cd5d78fe0d609742f6f9c653c571a7",
+    "sais-error/expectation.json": "ce8b73d8f13cfebe75d77dc4bbc5f3a011a27f85acea2764a4568929453fd40d",
+    "sais-error/summary.json": "e43203ca298d53e21379568a4665d607ed6eb4b9d324a9bee2af484183614e21",
+    "sais-incomplete/expectation.json": "323a29cc7f2804a01a57a4b5d89abce5e69a47a2881c561f12f4f45d9f4ca6f4",
+    "sais-incomplete/findings.json": "3862fdbb65ed98f61c1322cee41feddc945b0d84fb523aeefa0f3467c811b4a4",
+    "sais-incomplete/summary.json": "ea4042031b1056b4a2016788295d96a5c556866044ad380f16c24a1ba70863d1"
+  }
+}

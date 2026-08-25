@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "run_id": "d7481457-56c3-593a-a486-3d2e713c80c4",
+  "tool": "security-ai-scanner",
+  "version": "0.3.0-dev",
+  "generated_at": "2026-08-25T00:00:00Z",
+  "subject": {
+    "kind": "git",
+    "root": "/workspace/project",
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "base_sha": null,
+    "dirty": false,
+    "content_digest": null
+  },
+  "status": "completed",
+  "engine": "fixture",
+  "summary": "deterministic completed fixture",
+  "counts": {
+    "critical": 0,
+    "high": 1,
+    "medium": 0,
+    "low": 0,
+    "info": 0,
+    "total": 1
+  },
+  "files_reviewed": 1,
+  "gate": {
+    "fail_on": "none",
+    "failed": false
+  },
+  "exit_code": 0,
+  "duration_ms": 25,
+  "cost_usd": 0.0,
+  "total_tokens": 100,
+  "stopped": null,
+  "outputs": {
+    "findings.json": {
+      "path": "findings.json",
+      "sha256": "14b5e6e599753c4312c47170702e5fd443744550826960afd519e354b06d3e17",
+      "bytes": 910
+    }
+  }
+}

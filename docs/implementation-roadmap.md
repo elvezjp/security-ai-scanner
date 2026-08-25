@@ -105,7 +105,7 @@ cannot be mistaken for one completed run.
 Completion condition: CLI and runner tests cover every status and exit-code
 combination allowed by the specification.
 
-### S4. Conformance and regression tests
+### S4. Conformance and regression tests — Complete
 
 - Test run identity equality between the two native artifacts.
 - Recompute and verify hashes, byte counts, and severity counts.

@@ -347,6 +347,10 @@ The public API is limited to:
 - Coverage includes finding normalization, SARIF, reports, orchestration, exit
   codes, schema-version-1 conformance, run identity, digest and byte counts,
   finding counts, atomic publication, and stale-summary invalidation.
+- Producer conformance pins the valid `sais` fixtures and canonical schema
+  digests from a recorded `quality-keeper` commit. The same offline checks run
+  against deterministic completed, incomplete, and error artifacts emitted by
+  the real runner with a mock engine.
 
 ## 9. MCP server
 
