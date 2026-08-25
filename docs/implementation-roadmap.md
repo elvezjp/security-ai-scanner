@@ -42,6 +42,11 @@ The target milestone is **security-ai-scanner 0.3.0 with schema version 1**.
 The adoption work is tracked in
 [Issue #20](https://github.com/elvezjp/security-ai-scanner/issues/20).
 
+Until this milestone is complete, Issue #20 takes precedence over the product
+feature roadmap in `README.md`. The P0 items tracked in Issues #3 through #6
+follow schema-version-1 conformance and are not scheduled in parallel unless
+they are explicitly reprioritized.
+
 Implementation begins after `quality-keeper` publishes the schema-version-1
 schemas and conformance fixtures. Those fixtures define the consumer-visible
 acceptance boundary; this repository keeps producer-side copies or generated
@@ -75,8 +80,9 @@ schema version 1 without calling a live LLM.
 
 ### S2. Artifact integrity and atomic publication
 
-- Replace `outputs` path strings with entries containing `path`, `sha256`, and
-  `bytes`.
+- Replace each non-summary `outputs` path string with an entry containing
+  `path`, `sha256`, and `bytes`. Exclude `summary.json` itself because it is the
+  completion marker and cannot contain a digest of its own final bytes.
 - Invalidate a stale `summary.json` before a run starts.
 - Write artifacts to temporary files on the destination filesystem.
 - Atomically replace final artifact paths.
@@ -105,12 +111,13 @@ combination allowed by the specification.
 - Recompute and verify hashes, byte counts, and severity counts.
 - Test stale-summary invalidation and atomic replacement.
 - Test clean Git, dirty Git, and non-Git subjects.
-- Validate outputs against the real fixtures consumed by `qk`.
+- Validate emitted outputs against the canonical hand-authored conformance
+  fixtures published by `qk`.
 - Preserve all existing engine, parsing, report, SARIF, MCP, and notification
   behavior unless the specification explicitly changes it.
 
-Completion condition: all offline tests pass and `qk` can consume a real
-schema-version-1 `sais` result.
+Completion condition: all offline producer conformance tests pass, and real
+completed and incomplete schema-version-1 fixtures are ready for `qk`.
 
 ### S5. Release and downstream handoff
 

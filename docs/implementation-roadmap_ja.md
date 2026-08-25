@@ -43,6 +43,10 @@
 [Issue #20](https://github.com/elvezjp/security-ai-scanner/issues/20)
 で追跡する。
 
+このmilestoneが完了するまで、Issue #20を`README.md`の製品機能ロードマップより
+優先する。Issue #3から#6で追跡するP0項目はschema version 1適合の後に続け、
+明示的に優先順位を変更しない限り並行して進めない。
+
 実装は、`quality-keeper`がschema version 1のスキーマと適合性fixtureを公開した
 後に開始する。fixtureはconsumerから観測できる受入境界を定義する。本リポジトリ
 では、オフラインテスト用にproducer側のcopyまたは生成した同等物を維持する。
@@ -73,7 +77,9 @@ version 1に適合する。
 
 ### S2. 成果物の完全性とアトミックな公開
 
-- `outputs`のpath文字列を、`path`、`sha256`、`bytes`を持つ要素へ変更する。
+- summary以外の各`outputs` path文字列を、`path`、`sha256`、`bytes`を持つ要素へ
+  変更する。`summary.json`は完了マーカーであり、自身の最終byte列のdigestを
+  自身に格納できないため、`outputs`から除外する。
 - 実行開始前に古い`summary.json`を無効化する。
 - 出力先と同じfilesystem上の一時ファイルへ成果物を書く。
 - 最終成果物pathへアトミックに置き換える。
@@ -101,12 +107,12 @@ version 1に適合する。
 - hash、byte数、重要度別件数を再計算して検証する。
 - 古いsummaryの無効化とアトミックな置換をテストする。
 - clean Git、dirty Git、non-Git subjectをテストする。
-- `qk`が読む実fixtureに対して出力を検証する。
+- `qk`が公開する正本の手書き適合性fixtureに対して、生成した出力を検証する。
 - 仕様が明示的に変更しない限り、既存のengine、parse、report、SARIF、MCP、
   notificationの振る舞いを維持する。
 
-完了条件: すべてのoffline testがpassし、`qk`が実際のschema version 1の
-`sais`結果を読み込める。
+完了条件: producerの全offline conformance testがpassし、schema version 1の
+実completed・incomplete fixtureを`qk`へ渡せる。
 
 ### S5. リリースと後続への引き渡し
 
