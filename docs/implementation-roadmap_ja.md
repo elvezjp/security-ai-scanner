@@ -75,7 +75,7 @@
 完了条件: live LLMを呼ばず、completed、incomplete、errorのobjectがschema
 version 1に適合する。
 
-### S2. 成果物の完全性とアトミックな公開
+### S2. 成果物の完全性と安全な一括確定（atomic publication）— 完了
 
 - summary以外の各`outputs` path文字列を、`path`、`sha256`、`bytes`を持つ要素へ
   変更する。`summary.json`は完了マーカーであり、自身の最終byte列のdigestを
@@ -83,7 +83,7 @@ version 1に適合する。
 - 実行開始前に古い`summary.json`を無効化する。
 - 出力先と同じfilesystem上の一時ファイルへ成果物を書く。
 - 最終成果物pathへアトミックに置き換える。
-- 完了マーカーとして`summary.json`を最後に公開する。
+- 完了マーカーとして`summary.json`を最後に確定する。
 - 一つの出力ディレクトリへの並行writerを防止するか、明示的に拒否する。
 
 完了条件: 中断テストによって、古い成果物と新しい成果物が一つの完了runとして

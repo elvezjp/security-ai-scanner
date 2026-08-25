@@ -78,7 +78,7 @@ same 0.3.0 behavior and link to the common interchange specification.
 Completion condition: completed, incomplete, and error objects validate against
 schema version 1 without calling a live LLM.
 
-### S2. Artifact integrity and atomic publication
+### S2. Artifact integrity and atomic publication — Complete
 
 - Replace each non-summary `outputs` path string with an entry containing
   `path`, `sha256`, and `bytes`. Exclude `summary.json` itself because it is the

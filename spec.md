@@ -186,6 +186,15 @@ identity and subject values.
   bytes.
 - The producer invalidates a stale summary before analysis, atomically replaces
   final artifacts, and publishes `summary.json` last as the completion marker.
+- Before invalidating the summary, the producer exclusively creates
+  `.sais.lock` in the output directory and holds it until publication ends. If
+  the lock already exists, the run fails without changing existing artifacts.
+  A lock left by an interrupted process is never removed automatically; an
+  operator removes it only after confirming that no writer is active.
+- Every artifact is first written to a uniquely named temporary file on the
+  destination filesystem. The producer flushes the complete bytes before an
+  atomic replacement and removes its temporary file after a failed replacement.
+  The lock file and temporary files are coordination data, not outputs.
 - On an execution error, `--json` writes the published error summary object to
   stdout, or nothing when no summary could be published. Exit code 2 is
   unchanged in both cases.

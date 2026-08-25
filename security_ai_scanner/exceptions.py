@@ -15,3 +15,7 @@ class EngineError(ScannerError):
 
 class FindingsParseError(ScannerError):
     """The engine output could not be parsed into findings."""
+
+
+class PublicationError(ScannerError):
+    """Scan artifacts could not be safely committed to the output directory."""

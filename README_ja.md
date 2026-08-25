@@ -83,6 +83,10 @@ security-ai-scanner scan path/to/repo
 - `report.md`: 人が読むための Markdown レポート
 - `summary.json`: schema version 1の実行manifest兼完了マーカー
 
+各成果物は一つの出力ディレクトリ内で安全に一括確定し、`summary.json`を最後に
+確定します。`.sais.lock`により同時書き込みを拒否します。中断したprocessがlockを
+残した場合は、実行中のscanがないことを確認してから削除してください。
+
 終了コードは、`--fail-on` のしきい値以上の所見がなければ `0`、あれば `1`
 （CI ゲート）、エラー時は `2` です。
 

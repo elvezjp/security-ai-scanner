@@ -7,7 +7,12 @@ import pytest
 import security_ai_scanner.engine.base as engine_base
 from security_ai_scanner.config import ScanConfig
 from security_ai_scanner.engine.base import EngineResult, ScanEngine
-from security_ai_scanner.exceptions import EngineError, TargetError
+from security_ai_scanner.exceptions import (
+    EngineError,
+    PublicationError,
+    TargetError,
+)
+from security_ai_scanner.publication import LOCK_NAME, OutputPublication
 from security_ai_scanner.runner import build_user_prompt, run_scan
 
 
@@ -125,6 +130,85 @@ class TestRunScan:
         mock_engine["result"] = EngineResult(is_error=True, error_message="boom")
         with pytest.raises(EngineError):
             run_scan(_config(repo, tmp_path))
+        assert not (tmp_path / "out" / LOCK_NAME).exists()
+
+    def test_stale_summary_is_invalidated_before_engine_runs(
+        self, repo, tmp_path, mock_engine, monkeypatch
+    ):
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        summary_path = output_dir / "summary.json"
+        summary_path.write_text("old summary\n", encoding="utf-8")
+        mock_engine["result"] = _structured()
+        original_run = MockEngine.run
+
+        async def inspect_run(engine, request):
+            assert not summary_path.exists()
+            assert (output_dir / LOCK_NAME).exists()
+            return await original_run(engine, request)
+
+        monkeypatch.setattr(MockEngine, "run", inspect_run)
+        run_scan(_config(repo, tmp_path))
+
+    def test_existing_writer_is_rejected_before_engine_creation(
+        self, repo, tmp_path, mock_engine
+    ):
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        summary_path = output_dir / "summary.json"
+        summary_path.write_text("old summary\n", encoding="utf-8")
+        (output_dir / LOCK_NAME).write_text("busy\n", encoding="utf-8")
+        mock_engine["result"] = _structured()
+
+        with pytest.raises(PublicationError, match="already in use"):
+            run_scan(_config(repo, tmp_path))
+
+        assert summary_path.read_text(encoding="utf-8") == "old summary\n"
+        assert "engine" not in mock_engine
+
+    def test_summary_is_published_last(
+        self, repo, tmp_path, mock_engine, monkeypatch
+    ):
+        mock_engine["result"] = _structured()
+        order = []
+        original_write = OutputPublication.write_text
+
+        def record_write(publication, name, content):
+            order.append(name)
+            return original_write(publication, name, content)
+
+        monkeypatch.setattr(OutputPublication, "write_text", record_write)
+        run_scan(_config(repo, tmp_path))
+        assert order == [
+            "findings.json",
+            "findings.sarif",
+            "report.md",
+            "summary.json",
+        ]
+
+    def test_interruption_cannot_leave_a_completed_marker(
+        self, repo, tmp_path, mock_engine, monkeypatch
+    ):
+        output_dir = tmp_path / "out"
+        output_dir.mkdir()
+        summary_path = output_dir / "summary.json"
+        summary_path.write_text("old summary\n", encoding="utf-8")
+        mock_engine["result"] = _structured()
+        original_write = OutputPublication.write_text
+
+        def interrupt_write(publication, name, content):
+            if name == "findings.sarif":
+                raise PublicationError("injected interruption")
+            return original_write(publication, name, content)
+
+        monkeypatch.setattr(OutputPublication, "write_text", interrupt_write)
+
+        with pytest.raises(PublicationError, match="injected interruption"):
+            run_scan(_config(repo, tmp_path))
+
+        assert not summary_path.exists()
+        assert (output_dir / "findings.json").exists()
+        assert not (output_dir / LOCK_NAME).exists()
 
     def test_missing_target_raises(self, tmp_path, mock_engine):
         mock_engine["result"] = _structured()

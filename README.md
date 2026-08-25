@@ -84,6 +84,11 @@ This generates, under `./security-scan-results/`:
 - `report.md`: Human-readable Markdown report
 - `summary.json`: Schema-version-1 run manifest and completion marker
 
+Artifacts are atomically committed within one output directory, with
+`summary.json` committed last. A `.sais.lock` file rejects concurrent writers.
+If an interrupted process leaves the lock behind, confirm that no scan is
+active before removing it.
+
 The exit code is `0` when no finding meets the `--fail-on` threshold,
 `1` when one does (CI gate), and `2` on errors.
 
