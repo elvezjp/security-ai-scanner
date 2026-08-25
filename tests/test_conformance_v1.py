@@ -16,7 +16,7 @@ from jsonschema import Draft202012Validator, FormatChecker
 ROOT = Path(__file__).resolve().parents[1]
 QK_FIXTURES = ROOT / "tests" / "fixtures" / "qk-v1"
 PRODUCER_FIXTURES = (
-    ROOT / "tests" / "fixtures" / "sais-v1-release-candidate"
+    ROOT / "tests" / "fixtures" / "sais-v1-0.3.0"
 )
 STATUSES = ("completed", "incomplete", "error")
 IDENTITY_FIELDS = (
@@ -129,14 +129,14 @@ def test_pinned_qk_sais_fixtures_pass_conformance(status):
 
 
 @pytest.mark.parametrize("status", STATUSES)
-def test_real_runner_release_candidate_fixtures_pass_conformance(status):
+def test_real_runner_release_fixtures_pass_conformance(status):
     summary, findings = validate_case(PRODUCER_FIXTURES / f"sais-{status}")
     assert summary["status"] == status
-    assert summary["version"] == "0.3.0-dev"
+    assert summary["version"] == "0.3.0"
     assert (findings is None) == (status == "error")
 
 
-def test_release_candidate_fixtures_are_reproducible():
+def test_release_fixtures_are_reproducible():
     completed = subprocess.run(
         [
             sys.executable,

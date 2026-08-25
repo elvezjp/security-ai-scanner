@@ -7,6 +7,32 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づき、
 [セマンティック バージョニング](https://semver.org/lang/ja/) に準拠しています。
 
+## [0.3.0] - 2026-08-25
+
+### 追加
+
+- **native artifact schema version 1**：`summary.json`と`findings.json`で、UUID
+  `run_id`、UTCの`generated_at`、tool version、runの`status`、解決済みのGitまたは
+  filesystem subject identityを共有する
+- **成果物の完全性metadata**：native output descriptorに各成果物の相対path、
+  SHA-256 digest、byte数を記録し、summaryの件数をfindingsと照合する
+- **OpenAI互換read-only engine**：OpenAI互換local endpointへ接続し、sandbox化した
+  `read_file`、`glob`、`grep`だけを公開する組み込みagent loopを追加
+- `quality-keeper`とのリポジトリ間適合テスト用に、正本JSON Schemaと、実runnerを
+  通して生成する決定論的なcompleted、incomplete、error fixtureを追加
+
+### 変更
+
+- **native形式の破壊的変更境界**：0.3.0のschema version 1成果物は、公開済み
+  0.2.0の`summary.json`・`findings.json`形式と互換ではない
+- nativeの`findings.json`と`summary.json`を常に出力し、`--format`ではSARIFや
+  Markdownなど追加の派生成果物を選択する
+- 出力directoryのlock、古いsummaryの無効化、各fileのatomic replace、完了マーカー
+  としての`summary.json`最終確定を導入
+- completed、incomplete、errorを明示する。確定処理開始後の実行失敗では、可能な
+  範囲でschema-validな`status: "error"` summaryを出力する。終了コードの意味は
+  0（pass）、1（local gate failure）、2（execution error）のまま維持する
+
 ## [0.2.0] - 2026-08-09
 
 ### 追加
@@ -71,5 +97,6 @@
 
 | バージョン | 主な機能 |
 |------------|----------|
+| 0.3.0      | schema version 1のnative artifact、run identity、完全性metadata、atomic publication、明示的なincomplete/error状態、OpenAI互換read-only engine、リポジトリ間適合fixture |
 | 0.2.0      | ローカルLLM対応（`--base-url`）、エージェント向けサマリ出力（`--json`）、MCPサーバー、webhook通知、GitHub Action、Claude Codeスキル、自己スキャンのセキュリティ修正、Python 3.11以上必須 |
 | 0.1.0      | 初回リリース — エージェント型スキャン、SARIF/JSON/Markdown出力、CIゲート |

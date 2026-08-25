@@ -119,7 +119,7 @@ combination allowed by the specification.
 Completion condition: all offline producer conformance tests pass, and real
 completed and incomplete schema-version-1 fixtures are ready for `qk`.
 
-### S5. Release and downstream handoff
+### S5. Release and downstream handoff — In progress
 
 - Bump the package and runtime version to 0.3.0.
 - Update `README.md`, `README_ja.md`, changelogs, and specifications in the same

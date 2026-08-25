@@ -114,7 +114,7 @@ version 1に適合する。
 完了条件: producerの全offline conformance testがpassし、schema version 1の
 実completed・incomplete fixtureを`qk`へ渡せる。
 
-### S5. リリースと後続への引き渡し
+### S5. リリースと後続への引き渡し — 進行中
 
 - packageとruntime versionを0.3.0へ更新する。
 - `README.md`、`README_ja.md`、changelog、仕様を同じreleaseで更新する。

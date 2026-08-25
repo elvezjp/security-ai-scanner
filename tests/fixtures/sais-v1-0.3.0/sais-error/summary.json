@@ -2,7 +2,7 @@
   "schema_version": 1,
   "run_id": "fbcc6f2e-4c8c-573b-9258-9b97251fd502",
   "tool": "security-ai-scanner",
-  "version": "0.3.0-dev",
+  "version": "0.3.0",
   "generated_at": "2026-08-25T00:00:00Z",
   "subject": {
     "kind": "git",

@@ -2,7 +2,7 @@
   "schema_version": 1,
   "run_id": "e4fba3fc-4c9f-55a2-b21f-f21f69d9bf0d",
   "tool": "security-ai-scanner",
-  "version": "0.3.0-dev",
+  "version": "0.3.0",
   "generated_at": "2026-08-25T00:00:00Z",
   "subject": {
     "kind": "git",
@@ -36,8 +36,8 @@
   "outputs": {
     "findings.json": {
       "path": "findings.json",
-      "sha256": "1e9c42169554778c07a1caaba2b036a990b9a3d017903904df73598c60786851",
-      "bytes": 911
+      "sha256": "b5065737670e61a36a172b0549c758cb6b7ff80122a564ac2f334c721f2d76ab",
+      "bytes": 904
     }
   }
 }

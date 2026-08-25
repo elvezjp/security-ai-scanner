@@ -7,6 +7,37 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.3.0] - 2026-08-25
+
+### Added
+
+- **Native artifact schema version 1**: `summary.json` and `findings.json` now
+  share a UUID `run_id`, UTC `generated_at`, tool version, run `status`, and
+  resolved Git or filesystem subject identity
+- **Artifact integrity metadata**: native output descriptors record each
+  artifact's relative path, SHA-256 digest, and byte count; summary counts are
+  checked against findings
+- **OpenAI-compatible read-only engine**: a built-in agent loop connects to
+  OpenAI-compatible local endpoints while exposing only sandboxed `read_file`,
+  `glob`, and `grep` tools
+- Authoritative JSON Schemas plus deterministic completed, incomplete, and
+  error fixtures generated through the real runner for cross-repository
+  conformance testing with `quality-keeper`
+
+### Changed
+
+- **Breaking native format boundary**: 0.3.0 schema-version-1 artifacts are not
+  compatible with the released 0.2.0 `summary.json` and `findings.json` shape
+- Native `findings.json` and `summary.json` are always emitted; `--format`
+  selects additional derived artifacts such as SARIF and Markdown
+- Artifact publication now holds an output-directory lock, invalidates stale
+  summaries, atomically replaces each file, and commits `summary.json` last as
+  the completion marker
+- Completed, incomplete, and error runs are explicit. Execution failures write
+  a schema-valid `status: "error"` summary on a best-effort basis after
+  publication begins. Exit-code meanings remain 0 (pass), 1 (local gate
+  failure), and 2 (execution error)
+
 ## [0.2.0] - 2026-08-09
 
 ### Added
@@ -71,5 +102,6 @@ Fixes for three findings from a self-scan of this repository ([#14](https://gith
 
 | Version | Key Features |
 |---------|---------------|
+| 0.3.0   | Schema-version-1 native artifacts, run identity, integrity metadata, atomic publication, explicit incomplete/error states, OpenAI-compatible read-only engine, cross-repository conformance fixtures |
 | 0.2.0   | Local LLM support (`--base-url`), agent summary output (`--json`), MCP server, webhook notifications, GitHub Action, Claude Code skill, self-scan security fixes, Python 3.11+ |
 | 0.1.0   | Initial release — agentic scan, SARIF/JSON/Markdown output, CI gate |
