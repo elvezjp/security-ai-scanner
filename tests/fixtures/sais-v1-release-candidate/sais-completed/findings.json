@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "run_id": "d7481457-56c3-593a-a486-3d2e713c80c4",
+  "tool": "security-ai-scanner",
+  "version": "0.3.0-dev",
+  "generated_at": "2026-08-25T00:00:00Z",
+  "subject": {
+    "kind": "git",
+    "root": "/workspace/project",
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "base_sha": null,
+    "dirty": false,
+    "content_digest": null
+  },
+  "summary": "deterministic completed fixture",
+  "files_reviewed": 1,
+  "findings": [
+    {
+      "title": "Release-candidate fixture finding",
+      "severity": "high",
+      "confidence": "high",
+      "file": "src/example.py",
+      "start_line": 10,
+      "description": "A deterministic finding emitted through the real runner.",
+      "recommendation": "Keep the producer fixture aligned with Schema v1.",
+      "end_line": 12,
+      "cwe": "CWE-79",
+      "evidence": "def example():",
+      "id": "SAIS-0001"
+    }
+  ]
+}

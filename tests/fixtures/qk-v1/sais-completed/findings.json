@@ -1,0 +1,30 @@
+{
+  "findings": [
+    {
+      "confidence": "high",
+      "cwe": "CWE-79",
+      "description": "A specification-derived finding used for offline tests.",
+      "end_line": 12,
+      "evidence": "def example():",
+      "file": "src/example.py",
+      "id": "SAIS-0001",
+      "recommendation": "Keep this synthetic fixture aligned with schema version 1.",
+      "severity": "high",
+      "start_line": 10,
+      "title": "Synthetic conformance finding"
+    }
+  ],
+  "generated_at": "2026-08-25T00:00:00Z",
+  "run_id": "1a57e554-0cd6-5a7c-88e2-9152b25cd0f8",
+  "schema_version": 1,
+  "subject": {
+    "base_sha": null,
+    "content_digest": null,
+    "dirty": false,
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "kind": "git",
+    "root": "/workspace/project"
+  },
+  "tool": "security-ai-scanner",
+  "version": "0.3.0-dev"
+}

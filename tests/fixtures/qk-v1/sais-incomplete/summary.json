@@ -1,0 +1,40 @@
+{
+  "cost_usd": 0.0,
+  "counts": {
+    "critical": 0,
+    "high": 1,
+    "info": 0,
+    "low": 0,
+    "medium": 0,
+    "total": 1
+  },
+  "duration_ms": 25,
+  "exit_code": 0,
+  "gate": {
+    "fail_on": "none",
+    "failed": false
+  },
+  "generated_at": "2026-08-25T00:00:00Z",
+  "outputs": {
+    "findings.json": {
+      "bytes": 843,
+      "path": "findings.json",
+      "sha256": "3862fdbb65ed98f61c1322cee41feddc945b0d84fb523aeefa0f3467c811b4a4"
+    }
+  },
+  "run_id": "2db0fbbd-b3ad-510b-97db-3aa4727c57c4",
+  "schema_version": 1,
+  "status": "incomplete",
+  "stopped": "budget_exceeded",
+  "subject": {
+    "base_sha": null,
+    "content_digest": null,
+    "dirty": false,
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "kind": "git",
+    "root": "/workspace/project"
+  },
+  "tool": "security-ai-scanner",
+  "total_tokens": 100,
+  "version": "0.3.0-dev"
+}

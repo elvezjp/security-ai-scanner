@@ -345,6 +345,9 @@ JSON 出力指示を付加した上で `parse_text_output()` で解析する。
 - カバレッジ対象: 所見の検証・正規化、SARIF 変換、レポート生成、
   オーケストレーション、CLI の終了コード、schema version 1適合、run identity、
   hash・byte数・件数、atomic publication、古いsummaryの無効化
+- producer適合テストでは、記録した`quality-keeper` commitからvalidな`sais` fixtureと
+  正本schema digestを固定する。同じoffline検査を、mock engineを使って実runnerが
+  出力した決定論的なcompleted、incomplete、error成果物にも適用する
 
 ## 9. MCP サーバー
 

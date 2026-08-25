@@ -1,0 +1,34 @@
+{
+  "cost_usd": null,
+  "counts": {
+    "critical": 0,
+    "high": 0,
+    "info": 0,
+    "low": 0,
+    "medium": 0,
+    "total": 0
+  },
+  "duration_ms": null,
+  "exit_code": 2,
+  "gate": {
+    "fail_on": "none",
+    "failed": false
+  },
+  "generated_at": "2026-08-25T00:00:00Z",
+  "outputs": {},
+  "run_id": "8b040669-7716-5e0a-b5e7-20e86b35b812",
+  "schema_version": 1,
+  "status": "error",
+  "stopped": "engine_failure",
+  "subject": {
+    "base_sha": null,
+    "content_digest": null,
+    "dirty": false,
+    "head_sha": "0123456789abcdef0123456789abcdef01234567",
+    "kind": "git",
+    "root": "/workspace/project"
+  },
+  "tool": "security-ai-scanner",
+  "total_tokens": null,
+  "version": "0.3.0-dev"
+}
