@@ -2,7 +2,7 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-状態: 計画進行中
+状態: 実装進行中・S0完了
 
 最終更新: 2026-08-25
 
@@ -22,7 +22,7 @@
 | 段階 | 成果物 | 主担当リポジトリ |
 |---|---|---|
 | 0 | 共通成果物連携仕様 | `quality-keeper` — 完了 |
-| 1 | スキーマと適合性fixture | `quality-keeper` |
+| 1 | スキーマと適合性fixture | `quality-keeper` — 完了 |
 | 2 | 最初のschema version 1 producer（`sais` 0.3.0） | `security-ai-scanner` |
 | 3 | 最小native consumer検証 | `quality-keeper` |
 | 4 | `cair`の縦実装 | `code-ai-reviewer` |
@@ -53,7 +53,7 @@
 
 ## 4. 作業パッケージ
 
-### S0. 仕様とリリース境界
+### S0. 仕様とリリース境界 — 完了
 
 - 成果物の変更に先立って製品仕様を更新する。
 - 公開済み0.2.0のnative artifact形式からの意図的な破壊的変更として、
