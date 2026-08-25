@@ -459,8 +459,10 @@ Tracked issues use labels `priority:P0` / `P1` / `P2` and `roadmap`.
 
 ### P1 — generic product depth
 
-- **Second engine backend** — prove the engine-agnostic core with a non-Claude
-  adapter ([#7](https://github.com/elvezjp/security-ai-scanner/issues/7))
+- **Completed: Second engine backend** — the OpenAI-compatible adapter now
+  proves the engine-agnostic core beyond Claude
+  ([#7](https://github.com/elvezjp/security-ai-scanner/issues/7),
+  [#17](https://github.com/elvezjp/security-ai-scanner/pull/17))
 - **Scan profiles** — pluggable methodology prompts (`security` default, plus
   a small set of generic profiles; org-specific checklists stay outside the
   public core) ([#8](https://github.com/elvezjp/security-ai-scanner/issues/8))
