@@ -57,14 +57,16 @@ def build_payload(
 ) -> dict[str, Any]:
     """Build the POST body for one notification.
 
-    Exactly one of ``summary`` (scan finished) or ``error`` (scan failed)
-    is expected.
+    Completed runs pass ``summary`` only. Failed runs pass ``error`` and may
+    also pass the native error summary when it was successfully published.
     """
     if fmt not in NOTIFY_FORMATS:
         raise ValueError(f"format must be one of {NOTIFY_FORMATS}, got {fmt!r}")
     if error is not None:
         text = _error_line(target, error)
         if fmt == "generic":
+            if summary is not None:
+                return summary
             return {"tool": "security-ai-scanner", "status": "error",
                     "target": target, "error": error}
     else:

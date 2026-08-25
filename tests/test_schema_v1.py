@@ -6,10 +6,12 @@ import hashlib
 import json
 from pathlib import Path
 
+import pytest
 from jsonschema import Draft202012Validator, FormatChecker
 
 from security_ai_scanner.config import ScanConfig
 from security_ai_scanner.engine.base import EngineResult, ScanEngine
+from security_ai_scanner.exceptions import EngineError, get_published_summary
 from security_ai_scanner.native import create_native_run
 from security_ai_scanner.runner import build_error_summary, run_scan
 
@@ -106,3 +108,28 @@ def test_error_model_validates_without_live_engine(tmp_path, monkeypatch):
     _validate(summary, "native-summary-v1.schema.json")
     assert summary["status"] == "error"
     assert summary["exit_code"] == 2
+
+
+def test_runtime_error_summary_is_published_and_validates(tmp_path, monkeypatch):
+    target = tmp_path / "repo"
+    target.mkdir()
+    engine = FixedEngine(EngineResult(is_error=True, error_message="boom"))
+    monkeypatch.setattr(
+        "security_ai_scanner.runner.get_engine", lambda _name: engine
+    )
+    config = ScanConfig(
+        target=target,
+        output_dir=tmp_path / "out",
+        engine="fixed",
+    )
+
+    with pytest.raises(EngineError) as caught:
+        run_scan(config)
+
+    summary = json.loads(
+        (config.output_dir / "summary.json").read_text(encoding="utf-8")
+    )
+    _validate(summary, "native-summary-v1.schema.json")
+    assert summary == get_published_summary(caught.value)
+    assert summary["status"] == "error"
+    assert summary["outputs"] == {}

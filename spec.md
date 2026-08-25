@@ -173,14 +173,22 @@ identity and subject values.
 }
 ```
 
-- `status` is `completed`, `incomplete`, or `error`. When the output directory
-  is usable, an execution error writes an error summary on a best-effort basis.
+- `status` is `completed`, `incomplete`, or `error`. After configuration and
+  target validation succeed and the output lock is acquired, an execution
+  error writes an error summary on a best-effort basis. Errors before that
+  boundary, including an invalid target or an unavailable output lock, do not
+  publish a summary or change existing artifacts.
 - Exit codes retain their meanings: 0 local gate pass, 1 local gate failure,
   and 2 execution error. An incomplete run returning 0 or 1 is not proof of
   completeness.
 - Usage and cost fields are `null` when the engine cannot account for them.
 - A non-null `stopped`, including an unknown future value, means partial output
   and therefore `status: incomplete`.
+- Every engine error flag is an execution error even if the engine supplied
+  other output. A backend adapter may normalize a known limit or cancellation
+  into non-error partial output by setting a non-null `stopped` reason; the
+  runner still requires schema-valid final findings before publishing it as
+  `incomplete`.
 - `outputs` describes each published non-summary artifact with `path`, SHA-256,
   and byte count. It excludes `summary.json`, which cannot digest its own final
   bytes.
@@ -195,6 +203,11 @@ identity and subject values.
   destination filesystem. The producer flushes the complete bytes before an
   atomic replacement and removes its temporary file after a failed replacement.
   The lock file and temporary files are coordination data, not outputs.
+- A published error summary uses the current run identity, `status: error`,
+  `stopped: null`, `exit_code: 2`, zero counts, a non-failed local gate, null
+  usage fields, an empty `outputs` object, and a human-readable `error` message.
+  It is atomically committed under the same output lock and supersedes any
+  partial non-summary artifacts from the failed run.
 - On an execution error, `--json` writes the published error summary object to
   stdout, or nothing when no summary could be published. Exit code 2 is
   unchanged in both cases.
@@ -267,6 +280,8 @@ additional derived outputs; `json` remains accepted for CLI compatibility.
 ### 5.3 Webhook notification
 
 - Notification occurs after a completed run or an execution error.
+- A generic webhook receives the published native error summary when available;
+  failures before publication use the legacy minimal error object.
 - Discord and Slack messages contain counts and verdict only, never detailed
   findings or source paths.
 - Notification failure emits one stderr warning and never changes the scan exit

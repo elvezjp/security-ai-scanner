@@ -92,6 +92,12 @@ active before removing it.
 The exit code is `0` when no finding meets the `--fail-on` threshold,
 `1` when one does (CI gate), and `2` on errors.
 
+After a run has acquired its output lock, execution failures commit a
+schema-version-1 `status: "error"` summary when possible. With `--json`, that
+same object is printed to stdout while the process still exits `2`. Validation
+or lock failures before publication print no JSON and leave existing artifacts
+unchanged.
+
 ### Common Examples
 
 **Scan with a Japanese report:**

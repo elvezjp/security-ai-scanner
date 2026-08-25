@@ -31,6 +31,18 @@ class TestBuildPayload:
             "error": "boom",
         }
 
+    def test_generic_error_uses_published_native_summary(self):
+        summary = {
+            **SUMMARY,
+            "status": "error",
+            "exit_code": 2,
+            "error": "boom",
+        }
+        payload = build_payload(
+            "generic", summary, error="boom", target="/repo"
+        )
+        assert payload == summary
+
     def test_discord_message_shape(self):
         payload = build_payload("discord", SUMMARY)
         assert set(payload) == {"content"}

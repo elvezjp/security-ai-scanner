@@ -168,8 +168,10 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 }
 ```
 
-- `status`は`completed`・`incomplete`・`error`のいずれかとする。error時も
-  output directoryを利用できる場合はbest effortでerror summaryを書く
+- `status`は`completed`・`incomplete`・`error`のいずれかとする。設定とtargetの
+  検証に成功し、output lockを取得した後のexecution errorでは、best effortで
+  error summaryを書く。この境界より前のerror（target不正、output lock取得不能を
+  含む）ではsummaryを確定せず、既存成果物も変更しない
 - `exit_code`は0（local gate pass）、1（local gate fail）、2（execution error）の
   意味を維持する。incompleteの0または1は完全性を証明しない
 - `cost_usd` は `--base-url` 指定時（自社ホスト）は課金が発生しないため `null`
@@ -178,6 +180,10 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `stopped` は早期終了の理由（`"budget_exceeded"` / `"max_turns"`）。
   通常完了時は `null`。未知の将来の値を含め、非 null は部分的な出力を意味し、
   したがって `status: incomplete` とする
+- engineのerror flagは、他のoutputが存在しても常にexecution errorとする。
+  backend adapterは、既知の上限到達またはcancelを、非nullの`stopped`理由を持つ
+  non-errorな部分結果へ正規化してよい。その場合もrunnerはschema-validな最終所見を
+  必須とし、検証成功時だけ`incomplete`として確定する
 - `outputs`は実際に公開したsummary以外の成果物だけを含み、各要素に`path`、
   最終byte列の`sha256`、`bytes`を持つ。自己digestを格納できないため
   `summary.json`自身を含めない
@@ -190,6 +196,10 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - 各成果物は、まず出力先と同じfilesystem上の一意な一時ファイルへ完全なbyte列を
   書き込み、flushしてからatomic replaceする。置換に失敗した場合は、そのrunの
   一時ファイルを削除する。lock fileと一時ファイルは成果物ではなく制御用データとする
+- 確定できたerror summaryは現在のrun identity、`status: error`、`stopped: null`、
+  `exit_code: 2`、全件数0、`failed: false`のlocal gate、nullのusage field、空の
+  `outputs`、人が読める`error` messageを持つ。同じoutput lockの下でatomicに確定し、
+  失敗runが途中まで書いたsummary以外の成果物より優先する
 - execution error時の`--json`は、公開できたerror summaryのobjectをstdoutへ
   書き、summaryを公開できなかった場合は何も書かない。いずれの場合も
   終了コード2は変わらない
@@ -262,6 +272,8 @@ CLI互換性のため`json`も引き続き受け付ける。
 
 - 送信タイミングは2つ：スキャン完了時（§4.2 サマリ＋`status: completed`）と
   スキャン失敗時（`status: error`＋エラーメッセージ）
+- generic webhookは、確定済みnative error summaryがある場合はそのobjectを送り、
+  確定前の失敗では従来の最小error objectを送る
 - `discord`/`slack` 形式は件数と判定のみの1行テキスト。**所見の詳細
   （ファイル名・脆弱性内容）はチャットに送らない**
 - 通知の失敗はスキャン結果に影響させない（stderr に警告1行、終了コード不変）

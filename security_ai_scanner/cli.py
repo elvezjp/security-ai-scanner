@@ -16,7 +16,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import FAIL_ON_CHOICES, OUTPUT_FORMATS, ScanConfig
-from .exceptions import ScannerError
+from .exceptions import ScannerError, get_published_summary
 
 EXIT_OK = 0
 EXIT_GATE_FAILED = 1
@@ -163,7 +163,8 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help=(
             "Print the machine-readable scan summary as JSON to stdout "
-            "instead of the human-readable one (for agents and scripts)"
+            "instead of the human-readable one, including a published error "
+            "summary when exit code is 2 (for agents and scripts)"
         ),
     )
 
@@ -253,6 +254,7 @@ def main(argv: list[str] | None = None) -> int:
             config = _config_from_args(args)
             result = run_scan(config)
         except (ScannerError, ValueError) as exc:
+            published_summary = get_published_summary(exc)
             print(f"error: {exc}", file=sys.stderr)
             if webhook_url:
                 from .notify import send_notification
@@ -260,10 +262,12 @@ def main(argv: list[str] | None = None) -> int:
                 send_notification(
                     webhook_url,
                     args.notify_format,
-                    None,
+                    published_summary,
                     error=str(exc),
                     target=str(args.target),
                 )
+            if args.json_summary and published_summary is not None:
+                print(json.dumps(published_summary, ensure_ascii=False))
             return EXIT_ERROR
         if webhook_url:
             from .notify import send_notification

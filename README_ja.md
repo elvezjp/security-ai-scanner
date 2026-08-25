@@ -90,6 +90,11 @@ security-ai-scanner scan path/to/repo
 終了コードは、`--fail-on` のしきい値以上の所見がなければ `0`、あれば `1`
 （CI ゲート）、エラー時は `2` です。
 
+output lock取得後の実行失敗では、可能な場合にschema version 1の
+`status: "error"` summaryを確定します。`--json`指定時は終了コード2を維持したまま、
+同じobjectをstdoutへ出力します。確定処理前のvalidation errorやlock取得失敗では
+JSONを出力せず、既存成果物も変更しません。
+
 ### よく使う例
 
 **日本語レポートでスキャン:**

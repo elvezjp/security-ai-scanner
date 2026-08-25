@@ -66,6 +66,10 @@ remaining artifacts as one completed run. A `.sais.lock` file means another
 writer may be active; never remove it without first confirming that no scan is
 using the output directory.
 
+Exit code 2 may still have a schema-valid `status: "error"` summary. With
+`--json`, read it from stdout exactly as for completed and incomplete runs. If
+stdout is empty, publication was not possible; do not fall back to stale files.
+
 ## Useful options
 
 | Option | Use when |

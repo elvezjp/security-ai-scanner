@@ -26,6 +26,18 @@ DISALLOWED_TOOLS = [
 ]
 
 
+def _partial_stop_reason(message) -> str | None:
+    """Normalize SDK termination metadata that means partial analysis."""
+    terminal_reason = getattr(message, "terminal_reason", None)
+    if terminal_reason and terminal_reason != "completed":
+        return str(terminal_reason)
+    subtype = getattr(message, "subtype", None)
+    return {
+        "error_max_turns": "max_turns",
+        "error_max_budget_usd": "max_budget_usd",
+    }.get(subtype)
+
+
 def _build_env(request: ScanRequest) -> dict[str, str]:
     """Environment overrides for the agent subprocess.
 
@@ -108,11 +120,17 @@ class ClaudeAgentEngine(ScanEngine):
                     # repository content, which a hostile target could seed
                     # with a fake findings block to bypass the CI gate.
                     result.text = message.result or ""
-                    result.is_error = message.is_error
+                    result.stopped_reason = _partial_stop_reason(message)
+                    # SDK limit/cancellation results may carry valid partial
+                    # findings. Normalize those as incomplete; the runner still
+                    # validates the final payload before accepting it.
+                    result.is_error = (
+                        message.is_error and result.stopped_reason is None
+                    )
                     result.num_turns = message.num_turns
                     result.duration_ms = message.duration_ms
                     result.total_cost_usd = message.total_cost_usd
-                    if message.is_error:
+                    if result.is_error:
                         result.error_message = message.result or "engine error"
         except Exception as exc:
             raise EngineError(f"Claude Agent SDK failed: {exc}") from exc
