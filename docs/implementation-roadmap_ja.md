@@ -2,9 +2,9 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-状態: 実装進行中・S0〜S1完了
+状態: S0〜S5・製品群Q8完了、S6は独立follow-up
 
-最終更新: 2026-08-25
+最終更新: 2026-08-26
 
 ## 1. 目的と位置付け
 
@@ -23,11 +23,11 @@
 |---|---|---|
 | 0 | 共通成果物連携仕様 | `quality-keeper` — 完了 |
 | 1 | スキーマと適合性fixture | `quality-keeper` — 完了 |
-| 2 | 最初のschema version 1 producer（`sais` 0.3.0） | `security-ai-scanner` |
-| 3 | 最小native consumer検証 | `quality-keeper` |
-| 4 | `cair`の縦実装 | `code-ai-reviewer` |
-| 5 | ポリシーエンジンとレポートの完成 | `quality-keeper` |
-| 6 | 3製品E2E検証 | 3リポジトリ |
+| 2 | 最初のschema version 1 producer（`sais` 0.3.0） | `security-ai-scanner` — 完了 |
+| 3 | 最小native consumer検証 | `quality-keeper` — 完了 |
+| 4 | `cair`の縦実装 | `code-ai-reviewer` — 完了 |
+| 5 | ポリシーエンジンとレポートの完成 | `quality-keeper` — 完了 |
+| 6 | 3製品E2E検証 | 3リポジトリ — 完了 |
 
 この順序では、2番目のproducerを作る前に、一つの実producerと最小consumerを
 接続する。共通連携仕様を早期に検証し、変化中の成果物形式を`cair`へコピーする
@@ -114,7 +114,7 @@ version 1に適合する。
 完了条件: producerの全offline conformance testがpassし、schema version 1の
 実completed・incomplete fixtureを`qk`へ渡せる。
 
-### S5. リリースと後続への引き渡し — 進行中
+### S5. リリースと後続への引き渡し — 完了
 
 - packageとruntime versionを0.3.0へ更新する。
 - `README.md`、`README_ja.md`、changelog、仕様を同じreleaseで更新する。
@@ -161,7 +161,10 @@ version 1に適合する。
 
 ## 6. 次段階への引き渡し
 
-S5の後、`quality-keeper`は実際の`sais`出力に対する最小native consumer経路を
-実装・検証する。その経路がpassした後にだけ、`code-ai-reviewer`は記録済みの
-source commitから縦実装を開始する。S6は共通の機械可読仕様を再度開くことなく、
-0.3以降の独立した品質trackとして進められる。
+後続の`sais` consumer、`cair`縦実装、`qk` policy engineは完了した。製品群Q8では
+`fail_on=none`とclean Git revisionを使い、実runner・publication経路から決定論的な
+`sais` artifactを再生成し、最終判定が`qk`だけに残ることを証明する。対応matrixと5つの
+最終gate scenarioは
+[`quality-keeper/docs/compatibility_ja.md`](https://github.com/elvezjp/quality-keeper/blob/main/docs/compatibility_ja.md)
+に記録する。S6は共通の機械可読仕様を再度開かず、独立して進められる。製品群をprivateに
+保つ間、公開releaseは保留する。
