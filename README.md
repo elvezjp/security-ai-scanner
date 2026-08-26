@@ -42,6 +42,7 @@ human-readable Markdown report.
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - English-primary technical specification ([Japanese](https://github.com/elvezjp/security-ai-scanner/blob/main/spec_ja.md))
 - [Implementation roadmap](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap.md) - Suite order and the 0.3.0 conformance plan
 - [Local LLM E2E verification](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - Measured results for local models on a planted-vulnerability fixture
+- [Suite compatibility and Q8 evidence](https://github.com/elvezjp/quality-keeper/blob/main/docs/compatibility.md) - Supported private three-product matrix and final-gate scenarios
 
 ## Installation
 

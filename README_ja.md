@@ -42,6 +42,7 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 - [spec_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec_ja.md) - 技術仕様書（[英語正本](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md)）
 - [実装ロードマップ](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap_ja.md) - 製品群全体の順序と0.3.0適合計画
 - [ローカル LLM E2E 検証記録](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - 脆弱性を仕込んだフィクスチャでのローカルモデル実測結果
+- [製品群の互換性とQ8検証根拠](https://github.com/elvezjp/quality-keeper/blob/main/docs/compatibility_ja.md) - privateな3製品対応matrixと最終gate scenario
 
 ## インストール
 

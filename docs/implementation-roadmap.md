@@ -2,9 +2,9 @@
 
 [English](implementation-roadmap.md) | [日本語](implementation-roadmap_ja.md)
 
-Status: Active implementation; S0-S1 complete
+Status: S0-S5 and suite Q8 complete; S6 is an independent follow-up
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
 
 ## 1. Purpose and status
 
@@ -23,11 +23,11 @@ conformance tests make the specification executable.
 |---|---|---|
 | 0 | Common Result Interchange Specification | `quality-keeper` — complete |
 | 1 | Schemas and conformance fixtures | `quality-keeper` — complete |
-| 2 | First schema-version-1 producer (`sais` 0.3.0) | `security-ai-scanner` |
-| 3 | Minimal native consumer validation | `quality-keeper` |
-| 4 | Vertical implementation of `cair` | `code-ai-reviewer` |
-| 5 | Complete policy engine and reports | `quality-keeper` |
-| 6 | Three-product end-to-end validation | All three repositories |
+| 2 | First schema-version-1 producer (`sais` 0.3.0) | `security-ai-scanner` — complete |
+| 3 | Minimal native consumer validation | `quality-keeper` — complete |
+| 4 | Vertical implementation of `cair` | `code-ai-reviewer` — complete |
+| 5 | Complete policy engine and reports | `quality-keeper` — complete |
+| 6 | Three-product end-to-end validation | All three repositories — complete |
 
 This order connects one real producer to one minimal consumer before the second
 producer is built. It tests the interchange specification early and avoids
@@ -119,7 +119,7 @@ combination allowed by the specification.
 Completion condition: all offline producer conformance tests pass, and real
 completed and incomplete schema-version-1 fixtures are ready for `qk`.
 
-### S5. Release and downstream handoff — In progress
+### S5. Release and downstream handoff — Complete
 
 - Bump the package and runtime version to 0.3.0.
 - Update `README.md`, `README_ja.md`, changelogs, and specifications in the same
@@ -171,8 +171,11 @@ languages.
 
 ## 6. Handoff to the next phase
 
-After S5, `quality-keeper` implements and verifies the minimal native consumer
-path against real `sais` output. Only after that path passes does
-`code-ai-reviewer` begin its vertical implementation from the recorded source
-commit. S6 may proceed as an independent post-0.3 quality track without
-reopening the common machine-readable specification.
+The downstream `sais` consumer, `cair` vertical implementation, and `qk` policy
+engine are complete. Suite Q8 now regenerates deterministic `sais` artifacts
+through the real runner and publication path, with `fail_on=none` and a clean
+Git revision, and proves the final decision remains with `qk`. The supported
+matrix and five final-gate scenarios are recorded in
+[`quality-keeper/docs/compatibility.md`](https://github.com/elvezjp/quality-keeper/blob/main/docs/compatibility.md).
+S6 may proceed independently without reopening the common machine-readable
+specification. Public release remains deferred while the suite stays private.
