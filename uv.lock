@@ -850,15 +850,16 @@ wheels = [
 name = "security-ai-scanner"
 version = "0.3.0"
 source = { editable = "." }
-dependencies = [
-    { name = "claude-agent-sdk" },
-]
 
 [package.optional-dependencies]
+claude = [
+    { name = "claude-agent-sdk" },
+]
 mcp = [
     { name = "mcp" },
 ]
 test = [
+    { name = "claude-agent-sdk" },
     { name = "jsonschema" },
     { name = "mcp" },
     { name = "pytest" },
@@ -868,7 +869,8 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "claude-agent-sdk", specifier = ">=0.2.131" },
+    { name = "claude-agent-sdk", marker = "extra == 'claude'", specifier = ">=0.2.131" },
+    { name = "claude-agent-sdk", marker = "extra == 'test'", specifier = ">=0.2.131" },
     { name = "jsonschema", marker = "extra == 'test'", specifier = ">=4.23,<5" },
     { name = "mcp", marker = "extra == 'mcp'", specifier = ">=1.2.0,<2" },
     { name = "mcp", marker = "extra == 'test'", specifier = ">=1.2.0" },
@@ -876,7 +878,7 @@ requires-dist = [
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=4.0.0" },
     { name = "rfc3339-validator", marker = "extra == 'test'", specifier = ">=0.1.4" },
 ]
-provides-extras = ["mcp", "test"]
+provides-extras = ["claude", "mcp", "test"]
 
 [[package]]
 name = "six"

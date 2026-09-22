@@ -87,7 +87,8 @@ class ClaudeAgentEngine(ScanEngine):
         except ImportError as exc:  # pragma: no cover - import guard
             raise EngineError(
                 "claude-agent-sdk is not installed. "
-                "Install it with: pip install claude-agent-sdk"
+                "Install the Claude engine with: "
+                "pip install 'security-ai-scanner[claude]'"
             ) from exc
 
         options = ClaudeAgentOptions(

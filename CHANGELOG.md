@@ -7,6 +7,16 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Changed
+
+- Declared the project license with the SPDX expression `MIT` and made the
+  Claude Agent SDK an explicit `claude` extra instead of a mandatory dependency
+- Added packaged third-party notices, code provenance, and contribution-license
+  requirements for collaborative development
+- Added release SBOM generation and distribution license checks
+
 ## [0.3.0] - 2026-08-25
 
 ### Added
