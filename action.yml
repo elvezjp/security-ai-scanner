@@ -58,9 +58,9 @@ runs:
         SAIS_VERSION: ${{ inputs.version }}
       run: |
         if [ -n "$SAIS_VERSION" ]; then
-          python3 -m pip install --quiet "security-ai-scanner==$SAIS_VERSION"
+          python3 -m pip install --quiet "security-ai-scanner[claude]==$SAIS_VERSION"
         else
-          python3 -m pip install --quiet security-ai-scanner
+          python3 -m pip install --quiet "security-ai-scanner[claude]"
         fi
 
     - name: Run scan

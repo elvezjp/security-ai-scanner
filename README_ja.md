@@ -39,6 +39,8 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 - [CHANGELOG_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CHANGELOG_ja.md) - 更新履歴
 - [CONTRIBUTING_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING_ja.md) - コントリビューションガイド
 - [SECURITY_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY_ja.md) - セキュリティポリシー
+- [PROVENANCE_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/PROVENANCE_ja.md) - コードと仕様の由来
+- [THIRD_PARTY_NOTICES.md](https://github.com/elvezjp/security-ai-scanner/blob/main/THIRD_PARTY_NOTICES.md) - 依存ライセンスと別途適用される利用条件
 - [spec_ja.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec_ja.md) - 技術仕様書（[英語正本](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md)）
 - [実装ロードマップ](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap_ja.md) - 製品群全体の順序と0.3.0適合計画
 - [ローカル LLM E2E 検証記録](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - 脆弱性を仕込んだフィクスチャでのローカルモデル実測結果
@@ -46,14 +48,23 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 
 ## インストール
 
-Python 3.11 以上が必要です。標準エンジンは
-[Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/) を使用します。
-SDK に Claude Code CLI が同梱されているため、Node.js の個別インストールは不要です。
+Python 3.11 以上が必要です。標準のClaudeエンジンを使う場合は`claude`
+extraを指定します。[Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
+にはClaude Code CLIが同梱され、その利用にはAnthropicが公開する商用利用条件も
+別途適用されます。
+
+```bash
+pip install 'security-ai-scanner[claude]'
+# または uv で
+uv add 'security-ai-scanner[claude]'
+```
+
+組み込みのOpenAI互換ローカルエンジンだけを使う場合、第三者runtime依存は
+ありません。base packageだけをインストールします。
 
 ```bash
 pip install security-ai-scanner
-# または uv で
-uv add security-ai-scanner
+sais scan ./repo --engine openai --base-url http://127.0.0.1:11434/v1 --model MODEL
 ```
 
 インストール後、`security-ai-scanner` コマンド（短縮エイリアス `sais`）が
@@ -505,6 +516,9 @@ IXVでは、システム開発における日本語の文書について、理�
 ## ライセンス
 
 MIT ライセンス - 詳細は [LICENSE](https://github.com/elvezjp/security-ai-scanner/blob/main/LICENSE) を参照してください。
+第三者コンポーネントと別途適用されるサービス利用条件は
+[THIRD_PARTY_NOTICES.md](https://github.com/elvezjp/security-ai-scanner/blob/main/THIRD_PARTY_NOTICES.md)
+に記録しています。
 
 ## 連絡先
 

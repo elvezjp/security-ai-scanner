@@ -53,6 +53,10 @@ jobs:
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Build sdist and wheel
         run: uv build
+      - name: Generate locked runtime SBOM
+        run: >-
+          uv export --locked --no-dev --extra claude --extra mcp
+          --format cyclonedx1.5 --output-file sbom.cdx.json
       # タグと pyproject.toml の version がずれた配布物を公開しない。
       - name: Verify tag matches package version
         run: |
@@ -68,6 +72,11 @@ jobs:
         with:
           name: python-package-distributions
           path: dist/
+      - name: Upload SBOM
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: cyclonedx-sbom
+          path: sbom.cdx.json
 
   publish-pypi:
     name: Publish to PyPI

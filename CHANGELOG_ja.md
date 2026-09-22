@@ -7,6 +7,16 @@
 フォーマットは [Keep a Changelog](https://keepachangelog.com/ja/1.0.0/) に基づき、
 [セマンティック バージョニング](https://semver.org/lang/ja/) に準拠しています。
 
+## [未リリース]
+
+### 変更
+
+- project licenseをSPDX expression `MIT`で宣言し、Claude Agent SDKを必須依存から
+  明示的な`claude` extraへ変更
+- 共同開発に備え、配布物へ含める第三者通知、コード由来、コントリビューションの
+  license要件を追加
+- release SBOM生成と配布物license検証を追加
+
 ## [0.3.0] - 2026-08-25
 
 ### 追加

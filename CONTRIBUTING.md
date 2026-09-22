@@ -4,6 +4,19 @@
 
 This document describes guidelines for contributing to the project.
 
+## Contribution License and Provenance
+
+By submitting a contribution, you agree that it is licensed under the
+repository's [MIT License](./LICENSE) and confirm that you have the right to
+submit it. Preserve applicable copyright and license notices.
+
+Disclose copied or substantially adapted third-party material in the pull
+request, including its source URL, version or commit, and license. AI-assisted
+contributions remain the contributor's responsibility: review the result, do
+not submit confidential material, and record any material third-party source
+used to produce it. Update [PROVENANCE.md](./PROVENANCE.md) and
+[THIRD_PARTY_NOTICES.md](./THIRD_PARTY_NOTICES.md) when applicable.
+
 ## How to Contribute
 
 ### Reporting Bugs

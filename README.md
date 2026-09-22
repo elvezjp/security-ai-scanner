@@ -39,6 +39,8 @@ human-readable Markdown report.
 - [CHANGELOG.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CHANGELOG.md) - Version history
 - [CONTRIBUTING.md](https://github.com/elvezjp/security-ai-scanner/blob/main/CONTRIBUTING.md) - Contribution guidelines
 - [SECURITY.md](https://github.com/elvezjp/security-ai-scanner/blob/main/SECURITY.md) - Security policy and best practices
+- [PROVENANCE.md](https://github.com/elvezjp/security-ai-scanner/blob/main/PROVENANCE.md) - Code and specification provenance
+- [THIRD_PARTY_NOTICES.md](https://github.com/elvezjp/security-ai-scanner/blob/main/THIRD_PARTY_NOTICES.md) - Dependency licenses and service terms
 - [spec.md](https://github.com/elvezjp/security-ai-scanner/blob/main/spec.md) - English-primary technical specification ([Japanese](https://github.com/elvezjp/security-ai-scanner/blob/main/spec_ja.md))
 - [Implementation roadmap](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/implementation-roadmap.md) - Suite order and the 0.3.0 conformance plan
 - [Local LLM E2E verification](https://github.com/elvezjp/security-ai-scanner/blob/main/docs/local-llm-e2e-verification.md) - Measured results for local models on a planted-vulnerability fixture
@@ -46,15 +48,23 @@ human-readable Markdown report.
 
 ## Installation
 
-Requires Python 3.11 or higher. The default engine uses the
-[Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/), which
-bundles the Claude Code CLI — no separate Node.js installation is
-required.
+Requires Python 3.11 or higher. Install the `claude` extra for the default
+Claude engine. The [Claude Agent SDK](https://pypi.org/project/claude-agent-sdk/)
+bundles the Claude Code CLI and its use is also governed by Anthropic's
+published commercial terms.
+
+```bash
+pip install 'security-ai-scanner[claude]'
+# or with uv
+uv add 'security-ai-scanner[claude]'
+```
+
+The built-in OpenAI-compatible local engine has no third-party runtime
+dependency. Install the base package when only that engine is needed:
 
 ```bash
 pip install security-ai-scanner
-# or with uv
-uv add security-ai-scanner
+sais scan ./repo --engine openai --base-url http://127.0.0.1:11434/v1 --model MODEL
 ```
 
 After installation, the `security-ai-scanner` command (and its short
@@ -534,6 +544,8 @@ code is shared between the two projects.
 ## License
 
 MIT License - See [LICENSE](https://github.com/elvezjp/security-ai-scanner/blob/main/LICENSE) for details.
+Third-party components and separate service terms are recorded in
+[THIRD_PARTY_NOTICES.md](https://github.com/elvezjp/security-ai-scanner/blob/main/THIRD_PARTY_NOTICES.md).
 
 ## Contact
 
