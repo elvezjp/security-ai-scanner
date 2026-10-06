@@ -102,6 +102,8 @@ def meets_threshold(severity: str, fail_on: str) -> bool:
     return severity_rank(severity) <= severity_rank(fail_on)
 
 
+#: A URI scheme ("file:") or a Windows drive ("C:") prefix.
+_SCHEME_OR_DRIVE_RE = re.compile(r"^[A-Za-z][A-Za-z0-9+.-]*:")
 _CWE_RE = re.compile(r"^\s*CWE[-_ ]?0*([1-9][0-9]*)\b", re.IGNORECASE)
 
 
@@ -124,7 +126,11 @@ def _enum_value(raw: Any, allowed: tuple[str, ...], name: str, index: int) -> st
 def _normalize_file(raw: Any, index: int) -> str:
     """Normalize a repository-root-relative POSIX path or fail closed."""
     path = str(raw).strip()
-    if "\\" in path or path.startswith("/") or path.startswith("~"):
+    if (
+        "\\" in path
+        or path.startswith(("/", "~"))
+        or _SCHEME_OR_DRIVE_RE.match(path)
+    ):
         raise FindingsParseError(
             f"Finding #{index} file must be a repository-relative POSIX path: "
             f"{path!r}"
@@ -249,7 +255,7 @@ def parse_text_output(text: str) -> ScanOutput:
             obj = json.loads(candidate)
         except json.JSONDecodeError:
             continue
-        if not (isinstance(obj, dict) and isinstance(obj.get("findings"), list)):
+        if not (isinstance(obj, dict) and "findings" in obj):
             continue  # an unrelated JSON example, not a findings candidate
         # A findings-shaped block that fails validation is never skipped:
         # skipping it could leave a quoted "clean" block as the only

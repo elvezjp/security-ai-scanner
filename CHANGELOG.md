@@ -15,7 +15,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   being rounded to `info` / `medium`. On the text-parsing path used with
   `--base-url` (local LLMs), a model that wrote a severity such as "重大" or
   "severe" previously turned a critical issue into `info` and passed the gate
-- Finding file paths that are absolute, start with `~`, contain a backslash,
+- Finding file paths that are absolute, start with `~` or a URI scheme or drive
+  letter, contain a backslash,
   or contain `..` now fail the run instead of being rewritten; CWE values are
   normalized to the `CWE-<n>` form required by the native schema
 - In the text fallback parser, a findings block that fails validation is no

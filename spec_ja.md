@@ -105,7 +105,8 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `start_line` は 1 以上に切り上げ。数値化できない `end_line` は破棄。
   `end_line < start_line` は `start_line` に揃える
 - `file` はリポジトリルート相対のPOSIX pathへ正規化し、リポジトリルート外を
-  指すpathを許可しない。absolute path、`~`始まり、backslash、`..` segmentは
+  指すpathを許可しない。absolute path、`~`始まり、URI schemeやWindows drive prefix、backslash、
+  `..` segmentは
   書き換えず`FindingsParseError`とする
 - `cwe`は`CWE-<n>`形式へ正規化する（例: `cwe-079`や`CWE-79 (XSS)`は`CWE-79`）。
   CWEを表さない値は破棄する。CWEはgateに影響しない任意metadataのためである
@@ -113,8 +114,8 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
   `SAIS-0001` 形式の ID を付番する
 - 構造化出力が無い場合のフォールバック: エンジンの最終応答テキストから
   ` ```json ``` ` フェンス（または応答全体が単一の裸の JSON オブジェクト）
-  を抽出して解析する。`findings`配列を持たない JSON ブロック（引用コード例
-  など）は無視する。`findings`配列を持つが検証に失敗したブロックは無視せず
+  を抽出して解析する。`findings` keyを持たない JSON ブロック（引用コード例
+  など）は無視する。`findings` keyを持つが検証に失敗したブロックは無視せず
   `FindingsParseError`とし、引用された clean ブロックが本来の結果に
   置き換わらないようにする。スキーマ適合ブロックが**複数**見つかった場合は、
   どれかを黙って採用せず `FindingsParseError` とする（スキャン対象

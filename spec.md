@@ -115,16 +115,16 @@ run identity and subject required by the common specification.
 - `start_line` is clamped to at least 1. A non-numeric `end_line` is discarded;
   an end before the start is normalized to the start.
 - File paths normalize to repository-root-relative POSIX paths and cannot
-  escape the repository root. An absolute path, a `~` prefix, a backslash, or a
-  `..` segment raises `FindingsParseError` instead of being rewritten.
+  escape the repository root. An absolute path, a `~` prefix, a URI scheme or
+  Windows drive prefix, a backslash, or a `..` segment raises `FindingsParseError` instead of being rewritten.
 - CWE values normalize to `CWE-<n>` (for example `cwe-079` and
   `CWE-79 (XSS)` become `CWE-79`). A value that does not name a CWE is dropped,
   since CWE is optional metadata that does not affect the gate.
 - Findings sort by severity rank, file, and start line, then receive run-local
   IDs in `SAIS-0001` form.
 - Without structured output, parsing accepts one schema-valid fenced JSON
-  object or one bare response object. JSON blocks without a `findings` array
-  are ignored. A block with a `findings` array that fails validation raises
+  object or one bare response object. JSON blocks without a `findings` key
+  are ignored. A block with a `findings` key that fails validation raises
   `FindingsParseError` rather than being skipped, so a quoted clean block
   cannot replace the real result. Multiple schema-valid candidates fail closed
   with `FindingsParseError`.
