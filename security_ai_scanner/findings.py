@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import posixpath
 import re
 from dataclasses import dataclass, field, asdict
 from typing import Any
@@ -101,6 +102,56 @@ def meets_threshold(severity: str, fail_on: str) -> bool:
     return severity_rank(severity) <= severity_rank(fail_on)
 
 
+_CWE_RE = re.compile(r"^\s*CWE[-_ ]?0*([1-9][0-9]*)\b", re.IGNORECASE)
+
+
+def _enum_value(raw: Any, allowed: tuple[str, ...], name: str, index: int) -> str:
+    """Return a known enum value or fail closed.
+
+    An unknown severity must never be rounded down: a model that writes
+    "重大" or "severe" on the text-parsing path would otherwise turn a
+    critical issue into ``info`` and pass the CI gate.
+    """
+    value = str(raw).strip().lower()
+    if value not in allowed:
+        raise FindingsParseError(
+            f"Finding #{index} has invalid {name}: {str(raw)!r} "
+            f"(expected one of {', '.join(allowed)})"
+        )
+    return value
+
+
+def _normalize_file(raw: Any, index: int) -> str:
+    """Normalize a repository-root-relative POSIX path or fail closed."""
+    path = str(raw).strip()
+    if "\\" in path or path.startswith("/") or path.startswith("~"):
+        raise FindingsParseError(
+            f"Finding #{index} file must be a repository-relative POSIX path: "
+            f"{path!r}"
+        )
+    if ".." in path.split("/"):
+        raise FindingsParseError(
+            f"Finding #{index} file escapes the repository root: {path!r}"
+        )
+    normalized = posixpath.normpath(path)
+    if normalized in ("", "."):
+        raise FindingsParseError(f"Finding #{index} file is empty: {path!r}")
+    return normalized
+
+
+def _normalize_cwe(raw: Any) -> str | None:
+    """Return ``CWE-<n>`` or None when the value is not a CWE identifier.
+
+    Models often write "CWE-079" or "CWE-79 (XSS)"; the native schema only
+    accepts ``CWE-<n>``. CWE is optional metadata that never lowers the
+    gate, so an unrecognizable value is dropped instead of failing the run.
+    """
+    if not raw:
+        return None
+    match = _CWE_RE.match(str(raw))
+    return f"CWE-{match.group(1)}" if match else None
+
+
 def _coerce_finding(raw: dict[str, Any], index: int) -> Finding:
     missing = [
         key
@@ -112,12 +163,10 @@ def _coerce_finding(raw: dict[str, Any], index: int) -> Finding:
             f"Finding #{index} is missing required fields: {missing}"
         )
 
-    severity = str(raw["severity"]).lower()
-    if severity not in SEVERITY_ORDER:
-        severity = "info"
-    confidence = str(raw.get("confidence", "medium")).lower()
-    if confidence not in CONFIDENCE_LEVELS:
-        confidence = "medium"
+    severity = _enum_value(raw["severity"], SEVERITY_ORDER, "severity", index)
+    confidence = _enum_value(
+        raw.get("confidence", "medium"), CONFIDENCE_LEVELS, "confidence", index
+    )
 
     try:
         start_line = max(1, int(raw.get("start_line", 1)))
@@ -137,10 +186,10 @@ def _coerce_finding(raw: dict[str, Any], index: int) -> Finding:
         title=str(raw["title"]),
         severity=severity,
         confidence=confidence,
-        file=str(raw["file"]).lstrip("/"),
+        file=_normalize_file(raw["file"], index),
         start_line=start_line,
         end_line=end_line,
-        cwe=str(raw["cwe"]) if raw.get("cwe") else None,
+        cwe=_normalize_cwe(raw.get("cwe")),
         description=str(raw["description"]),
         recommendation=str(raw.get("recommendation", "")),
         evidence=str(raw["evidence"]) if raw.get("evidence") else None,
@@ -157,11 +206,11 @@ def parse_scan_output(obj: Any) -> ScanOutput:
     if not isinstance(raw_findings, list):
         raise FindingsParseError("Engine output is missing the 'findings' array")
 
-    findings = [
-        _coerce_finding(raw, i)
-        for i, raw in enumerate(raw_findings)
-        if isinstance(raw, dict)
-    ]
+    for i, raw in enumerate(raw_findings):
+        if not isinstance(raw, dict):
+            # Dropping it would silently remove a finding from the gate.
+            raise FindingsParseError(f"Finding #{i} is not a JSON object")
+    findings = [_coerce_finding(raw, i) for i, raw in enumerate(raw_findings)]
     findings.sort(key=lambda f: (severity_rank(f.severity), f.file, f.start_line))
     # Re-number after sorting so IDs follow severity order.
     for i, finding in enumerate(findings):
@@ -197,9 +246,15 @@ def parse_text_output(text: str) -> ScanOutput:
     outputs: list[ScanOutput] = []
     for candidate in candidates:
         try:
-            outputs.append(parse_scan_output(json.loads(candidate)))
-        except (json.JSONDecodeError, FindingsParseError):
+            obj = json.loads(candidate)
+        except json.JSONDecodeError:
             continue
+        if not (isinstance(obj, dict) and isinstance(obj.get("findings"), list)):
+            continue  # an unrelated JSON example, not a findings candidate
+        # A findings-shaped block that fails validation is never skipped:
+        # skipping it could leave a quoted "clean" block as the only
+        # candidate and let it pass the gate in place of the real result.
+        outputs.append(parse_scan_output(obj))
     if not outputs:
         raise FindingsParseError(
             "No parseable findings JSON found in engine output"

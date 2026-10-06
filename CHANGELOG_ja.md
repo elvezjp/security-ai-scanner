@@ -9,6 +9,16 @@
 
 ## [未リリース]
 
+### セキュリティ
+
+- 所見の未知のseverity・confidenceを`info`・`medium`へ丸めず、runを失敗
+  （終了コード2）させるよう変更。`--base-url`（ローカルLLM）で使うテキスト解析経路では、
+  modelが「重大」や「severe」と出力するとcriticalの問題が`info`になりgateを通過していた
+- absolute、`~`始まり、backslashまたは`..`を含む所見のfile pathを書き換えずrunを失敗
+  させるよう変更。CWEはnative schemaが要求する`CWE-<n>`形式へ正規化する
+- テキストfallback parserで、検証に失敗した所見blockを読み飛ばさないよう変更。
+  スキャン対象リポジトリから引用された「clean」blockが採用結果になることを防ぐ
+
 ### 変更
 
 - project licenseをSPDX expression `MIT`で宣言し、Claude Agent SDKを必須依存から
