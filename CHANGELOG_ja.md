@@ -18,6 +18,9 @@
   させるよう変更。CWEはnative schemaが要求する`CWE-<n>`形式へ正規化する
 - テキストfallback parserで、検証に失敗した所見blockを読み飛ばさないよう変更。
   スキャン対象リポジトリから引用された「clean」blockが採用結果になることを防ぐ
+- `openai`エンジンの`read_file`・`grep`ツールで、切り詰めた行を黙って切らず
+  `[line truncated: N more characters]`と明示するよう変更。空白の後ろに隠したコードが
+  完全な行に見えることを防ぐ
 
 ### 変更
 

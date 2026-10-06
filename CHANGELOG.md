@@ -21,6 +21,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - In the text fallback parser, a findings block that fails validation is no
   longer skipped, so a quoted "clean" block from the scanned repository cannot
   become the accepted result
+- The `openai` engine's `read_file` and `grep` tools now mark lines they cut
+  (`[line truncated: N more characters]`) instead of truncating them silently,
+  so code hidden after a run of padding no longer looks like a complete line
 
 ### Changed
 
