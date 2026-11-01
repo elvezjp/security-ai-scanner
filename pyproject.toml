@@ -48,7 +48,7 @@ claude = [
 mcp = [
     # The server uses the v1 API (mcp.server.fastmcp), which MCP 2.x
     # removed — an unpinned install would resolve 2.x and break `sais mcp`.
-    "mcp>=1.2.0,<2",
+    "mcp>=1.2.0,<3",
 ]
 test = [
     "claude-agent-sdk>=0.2.131",
