@@ -259,3 +259,15 @@ def test_runner_publishes_error_without_inspection_and_records_success(monkeypat
         assert not (config.output_dir / "findings.json").exists()
     summary = json.loads((config.output_dir / "summary.json").read_text())
     assert summary["exit_code"] == (0 if inspect else 2)
+
+
+@pytest.mark.parametrize("reason", ["max_turns", "max_budget_usd"])
+def test_partial_result_without_inspection_is_still_error(monkeypatch, reason):
+    _install_fake_sdk(monkeypatch, [_ResultMessage(
+        structured_output={"findings": [], "summary": "partial"},
+        is_error=True, terminal_reason=reason,
+    )])
+    result = _run(_request(structured_output=True))
+    assert result.is_error
+    assert result.successful_inspections == 0
+    assert result.structured_output is None
