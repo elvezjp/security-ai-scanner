@@ -101,7 +101,8 @@ def test_token_preserves_contents_except_one_newline(setup, contents, expected):
     assert read_auth_token(None, token, target=target) == expected
 
 
-@pytest.mark.parametrize("contents", [b"", b"key\n\n", b"key\nsecond", b"\xff", b"x" * 65537])
+@pytest.mark.parametrize("contents", [b"", b"key\n\n", b"key\nsecond", b"\xff", b"x" * 65537],
+                         ids=["empty", "extra-newline", "multiline", "non-utf8", "oversized"])
 def test_bad_token_is_not_echoed(setup, contents):
     target, _, token = setup
     token.write_bytes(contents)
