@@ -19,7 +19,7 @@ PATCH = '''diff --git a/app.py b/app.py
 
 
 @contextmanager
-def endpoint(models=None, response_model="fixture", status=200, reflect=False, finding=False):
+def endpoint(models=None, response_model="fixture", status=200, reflect=False, finding=False, finish_reason="stop", refusal=None, final_text=None):
     calls = []
     listed = [{"id":"fixture", "file":"/models/model-q4.gguf", "context_length":8192, "secret_field":"omit"}] if models is None else models
     class Handler(BaseHTTPRequestHandler):
@@ -43,8 +43,8 @@ def endpoint(models=None, response_model="fixture", status=200, reflect=False, f
             else:
                 summary = self.headers.get("Authorization") if reflect else "clean"
                 findings = [{"title":"Finding", "severity":"high", "confidence":"high", "category":"bug", "file":"app.py", "start_line":1, "description":"A defect", "recommendation":"Fix it", "evidence":"x = 2"}] if finding else []
-                message = {"content":json.dumps({"findings":findings, "summary":summary})}
-            self.reply({"model":response_model, "choices":[{"message":message}]})
+                message = {"content": final_text if final_text is not None else json.dumps({"findings":findings, "summary":summary}), "refusal": refusal}
+            self.reply({"model":response_model, "choices":[{"finish_reason": "tool_calls" if message.get("tool_calls") else finish_reason, "message":message}]})
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
     worker.start()
@@ -77,6 +77,43 @@ def invocation(tmp_path, monkeypatch):
         monkeypatch.setenv("SAIS_CONFIG", str(config))
         return main(["scan", str(target), "--profile", "local", "--json", "--format", "json", "-o", str(output), *extra])
     return run, output, token, target
+
+
+@pytest.mark.parametrize("abnormal", [False, True])
+def test_final_request_after_turn_limit_still_requires_normal_stop(invocation, capsys, abnormal):
+    run, output, _, _ = invocation
+    with endpoint(finish_reason="length" if abnormal else "stop") as (url, calls):
+        assert run(url, "--max-turns", "1") == (2 if abnormal else 0)
+    summary = json.loads(capsys.readouterr().out)
+    assert summary["status"] == ("error" if abnormal else "incomplete")
+    if not abnormal:
+        assert summary["stopped"] == "max_turns"
+    requests = [c[3] for c in calls if c[0] == "POST"]
+    assert len(requests) == 2 and "tools" not in requests[-1]
+
+
+@pytest.mark.parametrize("reason,refusal", [
+    ("length", None), ("content_filter", None), (None, None),
+    ("unknown", None), ("stop", "private refusal detail"),
+])
+def test_abnormal_completion_cannot_publish_clean_results(invocation, capsys, reason, refusal):
+    run, output, _, _ = invocation
+    # The summary is the completion marker; old files are not current outputs.
+    with endpoint() as (url, _):
+        assert run(url) == 0
+    previous_run = json.loads((output / "summary.json").read_text())["run_id"]
+    capsys.readouterr()
+    with endpoint(finish_reason=reason, refusal=refusal) as (url, calls):
+        assert run(url) == 2
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["status"] == "error"
+    assert summary["exit_code"] == 2 and summary["outputs"] == {}
+    assert summary["run_id"] != previous_run
+    assert json.loads((output / "findings.json").read_text())["run_id"] == previous_run
+    assert not (output / "findings.sarif").exists()
+    assert "private refusal detail" not in captured.out + captured.err
+    assert len([c for c in calls if c[0] == "POST"]) == 2
 
 
 def test_profile_only_run_resolves_model_and_publishes_safe_provenance(invocation, capsys):

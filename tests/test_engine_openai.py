@@ -26,7 +26,7 @@ def _response(content=None, tool_calls=None, total_tokens=100):
     if tool_calls is not None:
         message["tool_calls"] = tool_calls
     return {
-        "choices": [{"message": message}],
+        "choices": [{"finish_reason": "tool_calls" if tool_calls else "stop", "message": message}],
         "usage": {"total_tokens": total_tokens},
     }
 
