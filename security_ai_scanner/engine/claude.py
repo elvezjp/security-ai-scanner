@@ -8,6 +8,7 @@ edit, shell, and network tools are disallowed.
 from __future__ import annotations
 
 import sys
+from itertools import islice
 from pathlib import Path
 
 from ..exceptions import EngineError
@@ -90,7 +91,16 @@ def _content_inspection(block, root: Path) -> bool:
         if target != root and root not in target.parents:
             return False
         if block.name == "Read":
-            return target.is_file() and target.stat().st_size > 0
+            offset = block.input.get("offset", 1)
+            limit = block.input.get("limit", 1)
+            if (type(offset) is not int or offset < 1
+                    or type(limit) is not int or limit < 1 or not target.is_file()):
+                return False
+            # A successful Read beyond EOF returns a notice, not file content.
+            # Check that the requested starting line exists without loading
+            # the entire file or depending on the CLI's notice wording.
+            with target.open("rb") as stream:
+                return next(islice(stream, offset - 1, offset), None) is not None
         return target.exists()
     except (OSError, ValueError, RuntimeError):
         return False

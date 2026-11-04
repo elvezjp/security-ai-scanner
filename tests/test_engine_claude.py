@@ -271,3 +271,19 @@ def test_partial_result_without_inspection_is_still_error(monkeypatch, reason):
     assert result.is_error
     assert result.successful_inspections == 0
     assert result.structured_output is None
+
+
+@pytest.mark.parametrize("offset,limit,expected", [(1, 1, 1), (2, 1, 0), (100, 1, 0), (0, 1, 0), (1, 0, 0)])
+def test_read_range_must_include_a_real_line(monkeypatch, tmp_path, offset, limit, expected):
+    (tmp_path / "one.py").write_text("x = 1\n")
+    _install_fake_sdk(monkeypatch, [
+        _AssistantMessage([_ToolUseBlock("r", "Read", {
+            "file_path": "one.py", "offset": offset, "limit": limit,
+        })]),
+        _UserMessage([_ToolResultBlock("r", "1: x = 1" if expected else
+                                      "Warning: the file has 1 line; requested offset is beyond EOF.")]),
+        _ResultMessage(structured_output={"findings": []}),
+    ])
+    result = _run(_request(cwd=tmp_path, structured_output=True))
+    assert result.successful_inspections == expected
+    assert result.is_error == (expected == 0)
