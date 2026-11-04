@@ -108,3 +108,32 @@ class TestSendNotification:
         err = capsys.readouterr().err
         assert "warning: webhook notification failed" in err
         assert "secret-token-123" not in err
+
+
+@pytest.mark.parametrize("fmt,key", [("slack", "text"), ("discord", "content")])
+@pytest.mark.parametrize("total,failed", [(0, False), (2, False), (2, True)])
+@pytest.mark.parametrize("reason", ["max_turns", "budget_exceeded", None])
+def test_incomplete_notifications_distinguish_completion_from_threshold(fmt, key, total, failed, reason):
+    summary = {**SUMMARY, "status": "incomplete", "stopped": reason,
+               "counts": {"total": total}, "gate": {"failed": failed, "fail_on": "high"}}
+    text = build_payload(fmt, summary)[key]
+    assert "INCOMPLETE" in text
+    assert (reason or "unspecified") in text
+    assert "local finding threshold" in text
+    assert ("FAILED" if failed else "passed") in text
+    assert "gate passed" not in text
+    assert f"{total} finding(s)" in text
+    assert build_payload("generic", summary) == summary
+
+
+def test_stop_reason_cannot_be_hidden_by_completed_status():
+    summary = {**SUMMARY, "status": "completed", "stopped": "max_turns"}
+    assert "INCOMPLETE" in build_payload("slack", summary)["text"]
+
+
+@pytest.mark.parametrize("fmt,key", [("slack", "text"), ("discord", "content")])
+def test_completed_and_error_notification_behavior_is_preserved(fmt, key):
+    completed = {**SUMMARY, "status": "completed", "stopped": None, "gate": {"failed": False}}
+    assert "gate passed" in build_payload(fmt, completed)[key]
+    assert "INCOMPLETE" not in build_payload(fmt, completed)[key]
+    assert "ERROR" in build_payload(fmt, None, error="engine failed", target="repo")[key]

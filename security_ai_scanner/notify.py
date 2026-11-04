@@ -41,6 +41,10 @@ def _human_line(summary: dict[str, Any]) -> str:
         status = f"gate FAILED (fail-on: {gate.get('fail_on')})"
     else:
         status = "gate passed"
+    if summary.get("status") == "incomplete" or summary.get("stopped") is not None:
+        reason = summary.get("stopped") or "unspecified"
+        threshold = status.replace("gate", "local finding threshold", 1)
+        status = f"INCOMPLETE (stopped: {reason}); {threshold}"
     detail = f" ({breakdown})" if breakdown else ""
     subject = summary.get("subject", {})
     target = subject.get("root") or summary.get("target")
