@@ -131,3 +131,39 @@ class TestRegistration:
             "get_summary",
             "get_findings",
         }
+
+
+def test_cli_mcp_uses_startup_profile_and_keeps_endpoint_out_of_tool_arguments(tmp_path, monkeypatch):
+    from security_ai_scanner.cli import main
+    config = tmp_path / "machine.toml"
+    config.write_text('[profiles.local]\nengine="openai"\nbase_url="http://machine.invalid/v1"\nmodel="fixture"\n')
+    monkeypatch.setenv("SAIS_CONFIG", str(config))
+    target = tmp_path / "repo"
+    target.mkdir()
+    (target / "app.py").write_text("x = 1\n")
+    observed = []
+    class Engine:
+        async def run(self, request):
+            observed.append(request)
+            return EngineResult(structured_output={"findings":[], "summary":"clean"},
+                                model_provenance={"engine":"openai","model":"fixture","model_requested":"fixture","model_metadata":{}})
+    monkeypatch.setattr("security_ai_scanner.runner.get_engine", lambda name: Engine())
+    def run_server():
+        result = asyncio.run(mcp_server.scan_repository(str(target)))
+        assert result["provenance"]["model"] == "fixture"
+    monkeypatch.setattr(mcp_server.server, "run", run_server)
+    assert main(["mcp", "--profile", "local"]) == 0
+    assert observed[0].base_url == "http://machine.invalid/v1"
+    assert observed[0].model == "fixture"
+    tools = asyncio.run(mcp_server.server.list_tools())
+    scan = next(t for t in tools if t.name == "scan_repository")
+    assert not {"engine", "base_url", "model", "auth_token", "profile"} & set(scan.inputSchema["properties"])
+
+
+def test_mcp_rejects_target_containing_startup_profile(tmp_path, monkeypatch):
+    from security_ai_scanner.connection import ConnectionSettings
+    source = tmp_path / "machine.toml"
+    source.write_text("unused")
+    monkeypatch.setattr(mcp_server, "_CONNECTION", ConnectionSettings(engine="openai", source_file=source))
+    with pytest.raises(ValueError, match="outside the target"):
+        asyncio.run(mcp_server.scan_repository(str(tmp_path)))

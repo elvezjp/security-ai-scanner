@@ -29,13 +29,14 @@ class ScanRequest:
     #: Anthropic-compatible endpoint to talk to instead of the hosted API.
     base_url: str | None = None
     #: Auth token for that endpoint.
-    auth_token: str | None = None
+    auth_token: str | None = field(default=None, repr=False)
     #: Ask the backend for schema-constrained output. When False the engine
     #: returns text and the scanner parses JSON out of it.
     structured_output: bool = True
     #: Total-token budget for the whole scan. Engines that account usage
     #: per request stop early when the budget is reached; None = no cap.
     max_total_tokens: int | None = None
+    secret_values: tuple[str, ...] = field(default=(), repr=False)
 
 
 @dataclass
@@ -58,6 +59,7 @@ class EngineResult:
     #: Successful content inspections observed by the adapter, not model claims.
     #: None is reserved for adapters that do not report this metadata.
     successful_inspections: int | None = None
+    model_provenance: dict[str, Any] | None = None
 
 
 class ScanEngine(ABC):

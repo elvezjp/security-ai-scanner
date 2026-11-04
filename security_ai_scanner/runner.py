@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .connection import read_auth_token
 from .config import SEVERITY_ORDER, ScanConfig
 from .engine import EngineResult, ScanRequest, get_engine
 from .exceptions import (
@@ -192,6 +193,7 @@ def build_summary(
         # Why the scan stopped early ("budget_exceeded", "max_turns"), or
         # null for a normal completion. Findings may be partial when set.
         "stopped": stopped,
+        **({"provenance": engine_result.model_provenance} if engine_result.model_provenance is not None else {}),
         **(
             {"successful_inspections": engine_result.successful_inspections}
             if engine_result.successful_inspections is not None
@@ -272,6 +274,7 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
         try:
             engine = get_engine(config.engine)
 
+            token = read_auth_token(config.auth_token, config.auth_token_file, target=config.target)
             request = ScanRequest(
                 prompt=build_user_prompt(config),
                 system_prompt=load_scan_system_prompt(config.language),
@@ -282,7 +285,8 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                 max_total_tokens=config.max_total_tokens,
                 verbose=config.verbose,
                 base_url=config.base_url,
-                auth_token=config.auth_token,
+                auth_token=token,
+                secret_values=tuple(str(v) for v in (token, config.auth_token_file) if v),
                 structured_output=config.use_structured_output(),
             )
 
