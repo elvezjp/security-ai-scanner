@@ -332,6 +332,18 @@ The Claude adapter supplies the following child-process environment values:
 | `CLAUDE_CODE_OAUTH_TOKEN` | Empty | Prevent hosted credentials from taking precedence |
 | `ANTHROPIC_MODEL` and four model slots | `--model` | Pin all slots to the selected local model |
 
+A completed or incomplete result requires observed content inspection. In the
+OpenAI adapter, a non-empty `read_file` range or a `grep` that actually reads a
+non-empty file qualifies; discovery, failed calls, skipped files, and invalid
+arguments do not. The Claude adapter correlates scoped `Read` or content-mode
+`Grep` calls with successful, non-empty SDK tool results; unpaired results,
+errors, filename-only discovery, and no-match responses do not qualify.
+`successful_inspections` records qualifying operations in the summary, not
+unique files or coverage. The model's `files_reviewed` claim is not evidence.
+No qualifying inspection means exit 2, including at a limit. After genuine
+inspection, valid partial findings retain `incomplete` status. This guard
+establishes observed activity, not exhaustive coverage or finding accuracy.
+
 ## 6. Security design
 
 - The scan agent receives read-only tools; shell, write, and agent-accessible

@@ -192,6 +192,11 @@ def build_summary(
         # Why the scan stopped early ("budget_exceeded", "max_turns"), or
         # null for a normal completion. Findings may be partial when set.
         "stopped": stopped,
+        **(
+            {"successful_inspections": engine_result.successful_inspections}
+            if engine_result.successful_inspections is not None
+            else {}
+        ),
         "outputs": outputs,
     }
 

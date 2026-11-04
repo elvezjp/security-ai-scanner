@@ -55,6 +55,9 @@ class EngineResult:
     #: "budget_exceeded" or "max_turns"), or None for normal completion.
     #: Any non-null value means findings are partial.
     stopped_reason: str | None = None
+    #: Successful content inspections observed by the adapter, not model claims.
+    #: None is reserved for adapters that do not report this metadata.
+    successful_inspections: int | None = None
 
 
 class ScanEngine(ABC):

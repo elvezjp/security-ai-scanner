@@ -355,3 +355,65 @@ class TestTransportErrors:
             monkeypatch, http.client.BadStatusLine("garbage")
         )
         assert "Transport error" in message
+
+
+@pytest.mark.parametrize("name,args", [
+    ("read_file", {"path": "missing.py"}),
+    ("read_file", {}),
+    ("read_file", {"path": "app.py", "offset": 999}),
+    ("read_file", {"path": "../outside.py"}),
+    ("unknown", {}),
+    ("glob", {"pattern": "*.py"}),
+    ("grep", {"pattern": "("}),
+    ("grep", {"pattern": "x", "path": "missing"}),
+])
+def test_failed_calls_and_discovery_cannot_authorize_clean(tmp_path, monkeypatch, name, args):
+    (tmp_path / "app.py").write_text("x = 1\n")
+    transport = _FakeTransport([
+        _response(tool_calls=[_tool_call("c1", name, args)]),
+        _response(content=FINAL_JSON),
+    ])
+    result = _run(_request(tmp_path, structured_output=True), transport, monkeypatch)
+    assert result.is_error
+    assert result.structured_output is None
+    assert result.successful_inspections == 0
+
+
+def test_successful_grep_can_inspect_without_a_match(tmp_path, monkeypatch):
+    (tmp_path / "app.py").write_text("x = 1\n")
+    transport = _FakeTransport([
+        _response(tool_calls=[_tool_call("c1", "grep", {"pattern": "not_present"})]),
+        _response(content=FINAL_JSON),
+    ])
+    result = _run(_request(tmp_path), transport, monkeypatch)
+    assert not result.is_error
+    assert result.successful_inspections == 1
+
+
+@pytest.mark.parametrize("name,args,final", [
+    ("read_file", {"path": "missing.py"}, FINAL_JSON),
+    ("unknown", {}, FINAL_JSON),
+    ("read_file", {"path": "app.py"}, '{"findings": ["malformed"]}'),
+    ("read_file", {"path": "app.py"}, '{"findings": [{"title":"bug","severity":"severe","file":"app.py","description":"bad"}]}'),
+])
+def test_real_runner_never_publishes_false_clean(tmp_path, monkeypatch, name, args, final):
+    from security_ai_scanner.config import ScanConfig
+    from security_ai_scanner.exceptions import ScannerError, get_published_summary
+    from security_ai_scanner.runner import run_scan
+    from jsonschema import Draft202012Validator, FormatChecker
+    (tmp_path / "app.py").write_text("x = 1\n")
+    transport = _FakeTransport([
+        _response(tool_calls=[_tool_call("c1", name, args)]),
+        _response(content=final),
+    ])
+    monkeypatch.setattr(openai_engine, "_request_json", transport)
+    config = ScanConfig(target=tmp_path, output_dir=tmp_path / "out", engine="openai",
+                        base_url="http://127.0.0.1:8000/v1", model="stub", fail_on="none")
+    with pytest.raises(ScannerError) as caught:
+        run_scan(config)
+    summary = get_published_summary(caught.value)
+    assert summary["status"] == "error"
+    assert summary["exit_code"] == 2
+    assert not (config.output_dir / "findings.json").exists()
+    schema = json.loads((Path(__file__).parents[1] / "schemas/native-summary-v1.schema.json").read_text())
+    Draft202012Validator(schema, format_checker=FormatChecker()).validate(summary)
