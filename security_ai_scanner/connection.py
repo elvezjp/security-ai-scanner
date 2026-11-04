@@ -5,7 +5,7 @@ and profile loading is opt-in; importing it never reads machine settings.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 import os
 from pathlib import Path
 import stat
@@ -179,8 +179,19 @@ def redact(value, secrets):
     if isinstance(value, list):
         return [redact(item, secrets) for item in value]
     if isinstance(value, dict):
-        return {redact(key, secrets): redact(item, secrets) for key, item in value.items()}
+        return {key: redact(item, secrets) for key, item in value.items()}
     return value
+
+
+def redact_output(output, secrets):
+    """Redact free text after parsing/evidence validation, preserving gate data."""
+    findings = []
+    for finding in output.findings:
+        fields = {key: redact(getattr(finding, key), secrets)
+                  for key in ("title", "description", "recommendation", "evidence")
+                  if hasattr(finding, key)}
+        findings.append(replace(finding, **fields))
+    return replace(output, summary=redact(output.summary, secrets), findings=findings)
 
 
 def resolve_model(requested: str, base_url: str, headers: dict, transport):
@@ -201,7 +212,7 @@ def resolve_model(requested: str, base_url: str, headers: dict, transport):
         raise ValueError("model=auto refuses IXV beast mode for quality gates")
     metadata = {}
     if isinstance(selected.get("file"), str):
-        metadata["file"] = Path(selected["file"]).name
+        metadata["file"] = selected["file"].replace("\\", "/").rsplit("/", 1)[-1]
     if type(selected.get("context_length")) is int and selected["context_length"] > 0:
         metadata["context_length"] = selected["context_length"]
     if isinstance(selected.get("ixv_mode"), str):

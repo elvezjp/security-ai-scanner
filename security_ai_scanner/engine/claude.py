@@ -163,10 +163,10 @@ class ClaudeAgentEngine(ScanEngine):
                 "schema": request.output_schema,
             }
 
-        result = EngineResult(successful_inspections=0, model_provenance=redact({
-            "engine": "claude", "model_requested": request.model,
+        result = EngineResult(successful_inspections=0, model_provenance={"engine": "claude", **redact({
+            "model_requested": request.model,
             "model": request.model, "model_metadata": {},
-        }, secrets))
+        }, secrets)})
         pending: set[str] = set()
         root = request.cwd.resolve()
         try:
@@ -186,12 +186,12 @@ class ClaudeAgentEngine(ScanEngine):
                             if not block.is_error and _has_content(block.content):
                                 result.successful_inspections += 1
                 elif isinstance(message, ResultMessage):
-                    result.structured_output = redact(message.structured_output, secrets)
+                    result.structured_output = message.structured_output
                     # Only the agent's final response is trusted as the
                     # findings source. Intermediate assistant text quotes
                     # repository content, which a hostile target could seed
                     # with a fake findings block to bypass the CI gate.
-                    result.text = redact(message.result or "", secrets)
+                    result.text = message.result or ""
                     result.stopped_reason = _partial_stop_reason(message)
                     # SDK limit/cancellation results may carry valid partial
                     # findings. Normalize those as incomplete; the runner still

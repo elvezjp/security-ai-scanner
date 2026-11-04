@@ -350,10 +350,10 @@ class OpenAICompatEngine(ScanEngine):
             {"role": "user", "content": request.prompt},
         ]
 
-        result = EngineResult(model_provenance=redact({
-            "engine": "openai", "model_requested": request.model,
+        result = EngineResult(model_provenance={"engine": "openai", **redact({
+            "model_requested": request.model,
             "model": resolved_model, "model_metadata": metadata,
-        }, secrets))
+        }, secrets)})
         start = time.monotonic()
         total_tokens = 0
         final_text: str | None = None
@@ -383,7 +383,6 @@ class OpenAICompatEngine(ScanEngine):
                 raise EngineError("Endpoint returned a non-object response")
             if "model" in data and data["model"] != resolved_model:
                 raise EngineError("Endpoint response model changed from the selected model")
-            data = redact(data, secrets)
             result.num_turns += 1
             usage = data.get("usage") or {}
             total_tokens += int(usage.get("total_tokens") or 0)

@@ -19,7 +19,7 @@ PATCH = '''diff --git a/app.py b/app.py
 
 
 @contextmanager
-def endpoint(models=None, response_model="fixture", status=200, reflect=False):
+def endpoint(models=None, response_model="fixture", status=200, reflect=False, finding=False):
     calls = []
     listed = [{"id":"fixture", "file":"/models/model-q4.gguf", "context_length":8192, "secret_field":"omit"}] if models is None else models
     class Handler(BaseHTTPRequestHandler):
@@ -42,7 +42,8 @@ def endpoint(models=None, response_model="fixture", status=200, reflect=False):
                 message = {"role":"assistant", "tool_calls":[{"id":"read", "type":"function", "function":{"name":"read_file", "arguments":'{"path":"app.py"}'}}]}
             else:
                 summary = self.headers.get("Authorization") if reflect else "clean"
-                message = {"content":json.dumps({"findings":[], "summary":summary})}
+                findings = [{"title":"Finding", "severity":"high", "confidence":"high", "category":"bug", "file":"app.py", "start_line":1, "description":"A defect", "recommendation":"Fix it", "evidence":"x = 2"}] if finding else []
+                message = {"content":json.dumps({"findings":findings, "summary":summary})}
             self.reply({"model":response_model, "choices":[{"message":message}]})
     server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
     worker = threading.Thread(target=server.serve_forever, daemon=True)
@@ -179,3 +180,25 @@ def test_redirects_do_not_forward_credentials(invocation, capsys):
         assert run(url) == 2
     assert "HTTP 302" in capsys.readouterr().err
     assert len(calls) == 1 and calls[0][1] == "/v1/models"
+
+
+@pytest.mark.parametrize("token", ["high", "findings", "x = 2"])
+def test_credential_redaction_preserves_schema_and_evidence_validation(invocation, capsys, token):
+    run, output, _, _ = invocation
+    with endpoint(finding=True) as (url, _):
+        assert run(url, "--auth-token", token) == 1
+    captured = capsys.readouterr()
+    summary = json.loads(captured.out)
+    assert summary["counts"]["high"] == 1
+    findings = json.loads((output / "findings.json").read_text())["findings"]
+    assert findings[0]["severity"] == "high" and findings[0]["confidence"] == "high"
+    if token == "x = 2":
+        assert findings[0]["evidence"] == "[redacted]"
+
+
+def test_discovery_metadata_normalizes_foreign_path_separators(invocation, capsys):
+    run, _, _, _ = invocation
+    with endpoint(models=[{"id":"fixture", "file":r"C:\Users\private\models\model.gguf"}]) as (url, _):
+        assert run(url) == 0
+    provenance = json.loads(capsys.readouterr().out)["provenance"]
+    assert provenance["model_metadata"]["file"] == "model.gguf"

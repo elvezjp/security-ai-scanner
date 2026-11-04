@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
-from .connection import read_auth_token
+from .connection import read_auth_token, redact, redact_output
 from .config import SEVERITY_ORDER, ScanConfig
 from .engine import EngineResult, ScanRequest, get_engine
 from .exceptions import (
@@ -268,6 +268,7 @@ def evaluate_gate(output: ScanOutput, fail_on: str) -> bool:
 async def run_scan_async(config: ScanConfig) -> ScanResult:
     """Run one scan end to end."""
     config.validate()
+    token = None
     timestamp = datetime.now(timezone.utc)
     run = create_native_run(config.target, generated_at=timestamp)
     with OutputPublication(config.output_dir, run.run_id) as publication:
@@ -305,6 +306,7 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                     f"turns={engine_result.num_turns})"
                 ) from exc
 
+            output = redact_output(output, request.secret_values)
             written = write_outputs(
                 config, output, run, publication, timestamp=timestamp
             )
@@ -327,6 +329,8 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                 summary=summary,
             )
         except (ScannerError, ValueError) as exc:
+            secrets = tuple(str(v) for v in (token, config.auth_token_file) if v)
+            exc.args = (redact(str(exc), secrets),)
             publish_error_summary(config, run, publication, exc)
             raise
 

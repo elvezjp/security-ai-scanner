@@ -56,7 +56,9 @@ is an error. An explicit `--auth-token ""` suppresses lower-priority credentials
 `--auth-token VALUE` remains supported with a process-list/history warning;
 prefer `--auth-token-file PATH` or the environment. Tokens, credential paths,
 and profile documents are never included in provenance; reflected credentials
-are redacted and HTTP error bodies are not printed. HTTP redirects are refused.
+are redacted and HTTP error bodies are not printed. Redaction applies to free
+text after schema and evidence validation; finding keys, severity, and category
+keep their meaning even when a local token is a common word. HTTP redirects are refused.
 
 `model = "auto"` works with the OpenAI-compatible engine only. It queries
 `GET /models` and uses exactly one valid advertised model. Empty, malformed,
