@@ -134,3 +134,26 @@ def test_tool_state_directories_are_skipped_as_blind_spots(tmp_path):
     assert [(s.path, s.reason) for s in result.blind_spots] == [
         ("node_modules", "skipped_directory")
     ]
+
+
+def test_leading_zero_width_other_than_bom_is_a_candidate(tmp_path):
+    (tmp_path / "a.py").write_text("​x = 1\n", encoding="utf-8")
+    assert _kinds(run_prepass(tmp_path)) == [("zero_width", "a.py", 1)]
+
+
+def test_unreadable_directory_is_a_blind_spot(tmp_path, monkeypatch):
+    import os
+
+    locked = tmp_path / "locked"
+    locked.mkdir()
+    (locked / "x.py").write_text("x = 1\n")
+    real_scandir = os.scandir
+
+    def scandir(path="."):
+        if os.fspath(path) == str(locked):
+            raise PermissionError(13, "Permission denied", str(locked))
+        return real_scandir(path)
+
+    monkeypatch.setattr(os, "scandir", scandir)
+    spots = [(s.path, s.reason) for s in run_prepass(tmp_path).blind_spots]
+    assert spots == [("locked", "unreadable")]

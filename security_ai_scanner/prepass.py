@@ -217,7 +217,14 @@ def _iter_files(
     root: Path, excluded: Iterable[Path], skipped: list[BlindSpot]
 ) -> Iterable[tuple[Path, str]]:
     excluded_paths = [path.resolve() for path in excluded]
-    for dirpath, dirnames, filenames in os.walk(root, followlinks=False):
+    def unreadable(error: OSError) -> None:
+        where = Path(error.filename) if error.filename else root
+        rel = where.relative_to(root).as_posix() if where != root else "."
+        skipped.append(BlindSpot(rel, "unreadable"))
+
+    for dirpath, dirnames, filenames in os.walk(
+        root, onerror=unreadable, followlinks=False
+    ):
         current = Path(dirpath)
         kept = []
         for name in sorted(dirnames):
@@ -346,7 +353,9 @@ def run_prepass(
                 bidi.append((lineno, len(found)))
             if found := _TAG.findall(line):
                 tag.append((lineno, len(found)))
-            if _ZERO_WIDTH.search(line[1:] if lineno == 1 else line):
+            if lineno == 1 and line.startswith("\ufeff"):
+                line = line[1:]  # a byte order mark, not hidden content
+            if _ZERO_WIDTH.search(line):
                 result.candidates.append(
                     Candidate("zero_width", rel, lineno, "zero-width character")
                 )

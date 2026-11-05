@@ -383,7 +383,7 @@ recorded as `skipped_directory` blind spots.
 |---|---|---|
 | Finding | Bidirectional control characters U+202A–U+202E, U+2066–U+2069 (CWE-451, Trojan Source); Unicode tag characters U+E0000–U+E007F (CWE-1427) | One `high` / `high`-confidence finding per file and kind, added after parsing. The engine cannot remove it; an engine finding with the same file and CWE is replaced by it |
 | Candidate | Instruction-like text aimed at AI tools (English and Japanese), zero-width characters, agent configuration (`AGENTS.md`, `CLAUDE.md`, `.cursorrules`, MCP config, …), install hooks (`setup.py`, `.pth`, npm lifecycle scripts), CI configuration, encoded strings of 200+ characters | Passed to the engine as locations to judge; never a finding by itself |
-| Blind spot | Files over 1,000,000 bytes, unreadable or binary files, lines over 500 characters, skipped directories | Passed to the engine and recorded in `summary.json` |
+| Blind spot | Files over 1,000,000 bytes, unreadable files or directories, binary files, lines over 500 characters, skipped directories | Passed to the engine and recorded in `summary.json` |
 
 The prompt carries locations and kinds only, never matched text, inside a
 `<deterministic_prepass>` block marked as untrusted. At most 200 candidates and
