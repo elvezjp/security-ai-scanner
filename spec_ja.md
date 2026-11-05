@@ -33,6 +33,7 @@ LLM エージェントで検出する CLI ツール兼 Python ライブラリで
 ```
 cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バックエンド
               │
+              ├─▶ prepass.py エンジン前の決定論検査
               ├─▶ prompts/   スキャン手法（システムプロンプト）
               ├─▶ findings.py 所見スキーマ・検証
               ├─▶ sarif.py    SARIF 出力
@@ -47,6 +48,7 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 | `config.py` | `ScanConfig`（スキャン設定）と検証 | なし |
 | `runner.py` | オーケストレーション（プロンプト構築 → エンジン実行 → 解析 → 出力） | なし |
 | `findings.py` | 所見モデル、出力 JSON Schema、検証・正規化 | なし |
+| `prepass.py` | エンジン前の決定論検査（所見・候補・死角） | なし |
 | `sarif.py` | SARIF 2.1.0 変換 | なし |
 | `report.py` | Markdown レポート生成（en/ja） | なし |
 | `prompts/` | スキャン手法テキスト（バックエンド中立） | なし |
@@ -167,6 +169,15 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
   "cost_usd": 1.23,
   "total_tokens": 45678,
   "stopped": null,
+  "prepass": {
+    "files_scanned": 120,
+    "deterministic_findings": 0,
+    "candidates": 4,
+    "candidates_in_prompt": 4,
+    "blind_spots": [{"path": "dist/app.min.js", "reason": "long_line"}],
+    "blind_spots_total": 1,
+    "blind_spots_truncated": false
+  },
   "outputs": {
     "findings.json": {
       "path": "findings.json",
@@ -212,6 +223,9 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - execution error時の`--json`は、公開できたerror summaryのobjectをstdoutへ
   書き、summaryを公開できなかった場合は何も書かない。いずれの場合も
   終了コード2は変わらない
+- `prepass`は決定論プリパス（§6.1）の結果を記録する。読んだファイル数、決定論所見数、
+  候補数とそのうちプロンプトに渡した数、死角（最大200件を列挙し、
+  `blind_spots_total`と`blind_spots_truncated`を併記）。error summaryには含めない
 
 ### 4.1 SARIF マッピング
 
@@ -349,6 +363,22 @@ Claudeアダプターでは、対象内の`Read`またはcontentモードの`Gre
   禁止する。すべての所見に実在するファイルパス・行番号の引用を要求する
 - **限界**: プロンプトインジェクションと誤検出・見逃しは完全には排除
   できない。出力は人のレビューを前提とする
+
+### 6.1 決定論プリパス（`prepass.py`）
+
+エンジン実行前に、runnerはモデルを使わずtarget配下の全ファイルを1回読む。
+`.git`、出力ディレクトリ、シンボリックリンクは読まない。`__pycache__`、
+`node_modules`、`.venv`、`venv`、`.tox`は読まず、`skipped_directory`の死角として記録する。
+
+| 結果 | 内容 | 扱い |
+|---|---|---|
+| 所見 | 双方向制御文字 U+202A〜U+202E、U+2066〜U+2069（CWE-451、Trojan Source）、Unicodeタグ文字 U+E0000〜U+E007F（CWE-1427） | ファイルと種類ごとに1件、severity・confidenceとも`high`の所見として解析後に追加する。エンジンは消せず、同じファイル・CWEのエンジン所見は置き換える |
+| 候補 | AIツール向けの指示らしい文（英語・日本語）、ゼロ幅文字、エージェント設定（`AGENTS.md`、`CLAUDE.md`、`.cursorrules`、MCP設定など）、インストールフック（`setup.py`、`.pth`、npmのlifecycle script）、CI設定、200文字以上のエンコード文字列 | 判断すべき場所としてエンジンに渡す。それ自体は所見にしない |
+| 死角 | 1,000,000バイト超、読めない、バイナリのファイル、500文字超の行、読まなかったディレクトリ | エンジンに渡し、`summary.json`に記録する |
+
+プロンプトには場所と種類だけを渡し、一致した文字列は渡さない。信頼できない入力と明示した
+`<deterministic_prepass>`ブロックで包む。プロンプトに渡す候補と死角はそれぞれ最大200件で、
+切り捨てた場合はその旨を示す。
 
 ## 7. ライブラリ API
 

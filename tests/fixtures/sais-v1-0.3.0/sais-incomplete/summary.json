@@ -33,6 +33,15 @@
   "cost_usd": 0.0,
   "total_tokens": 100,
   "stopped": "budget_exceeded",
+  "prepass": {
+    "files_scanned": 1,
+    "deterministic_findings": 0,
+    "candidates": 0,
+    "candidates_in_prompt": 0,
+    "blind_spots": [],
+    "blind_spots_total": 0,
+    "blind_spots_truncated": false
+  },
   "outputs": {
     "findings.json": {
       "path": "findings.json",

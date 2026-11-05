@@ -25,6 +25,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - The `openai` engine's `read_file` and `grep` tools now mark lines they cut
   (`[line truncated: N more characters]`) instead of truncating them silently,
   so code hidden after a run of padding no longer looks like a complete line
+- **Deterministic prepass** (`prepass.py`) runs before the engine without a
+  model. Bidirectional control characters (Trojan Source, CWE-451) and
+  invisible Unicode tag characters (CWE-1427) become `high` findings the engine
+  cannot drop, so a prompt-injected "clean" answer no longer hides them.
+  Instruction-like text aimed at AI tools, zero-width characters, agent
+  configuration files, install hooks, CI configuration and long encoded strings
+  are passed to the engine as candidates to judge; files and lines the read
+  tools cannot fully show are passed as blind spots. `summary.json` records the
+  result under `prepass`
+- The scan prompt now covers malicious or planted code (backdoors, obfuscated
+  payloads, install hooks, CI tampering) and content aimed at AI tools
 
 ### Changed
 
