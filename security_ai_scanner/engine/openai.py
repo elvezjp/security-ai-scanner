@@ -164,6 +164,7 @@ class ReadOnlyTools:
 
     def __init__(self, root: Path):
         self.root = root.resolve()
+        self.successful_inspections = 0
 
     def call(self, name: str, args: dict[str, Any]) -> str:
         handlers = {
@@ -212,6 +213,7 @@ class ReadOnlyTools:
         window = lines[offset - 1 : offset - 1 + limit]
         if not window:
             return f"(empty range: file has {len(lines)} lines)"
+        self.successful_inspections += 1
         numbered = [
             f"{offset + i}\t{_clip_line(line)}"
             for i, line in enumerate(window)
@@ -257,6 +259,7 @@ class ReadOnlyTools:
             return f"error: invalid regex: {exc}"
         base = self._resolve(path)
         matches: list[str] = []
+        inspected = False
         for file, rel in self._iter_files(base):
             try:
                 if file.stat().st_size > MAX_FILE_BYTES:
@@ -264,6 +267,9 @@ class ReadOnlyTools:
                 text = file.read_text("utf-8", errors="replace")
             except OSError:
                 continue
+            if text and not inspected:
+                self.successful_inspections += 1
+                inspected = True
             for lineno, line in enumerate(text.splitlines(), 1):
                 if regex.search(line):
                     shown = _clip_line(line.strip(), MAX_GREP_LINE_CHARS)
@@ -348,7 +354,6 @@ class OpenAICompatEngine(ScanEngine):
         result = EngineResult()
         start = time.monotonic()
         total_tokens = 0
-        executed_tool_calls = 0
         final_text: str | None = None
 
         def send(payload_messages, *, with_tools: bool) -> dict[str, Any]:
@@ -404,7 +409,6 @@ class OpenAICompatEngine(ScanEngine):
                         content = f"error: invalid tool arguments: {exc}"
                     else:
                         content = tools.call(str(function.get("name", "")), args)
-                        executed_tool_calls += 1
                 messages.append(
                     {
                         "role": "tool",
@@ -433,6 +437,7 @@ class OpenAICompatEngine(ScanEngine):
 
         result.duration_ms = int((time.monotonic() - start) * 1000)
         result.total_tokens = total_tokens
+        result.successful_inspections = tools.successful_inspections
         result.text = final_text or ""
         if request.structured_output and final_text:
             try:
@@ -442,7 +447,7 @@ class OpenAICompatEngine(ScanEngine):
         if not result.text and result.structured_output is None:
             result.is_error = True
             result.error_message = "engine returned no final output"
-        elif executed_tool_calls == 0:
+        elif result.successful_inspections == 0:
             # A verdict produced without a single file inspection is not a
             # scan. Small models often emit tool calls as plain text that
             # the server cannot parse into tool_calls, then degenerate to
@@ -457,7 +462,7 @@ class OpenAICompatEngine(ScanEngine):
             else:
                 result.error_message = (
                     "model produced a final answer without inspecting any "
-                    "files (no tool calls executed). The endpoint or model "
+                    "files successfully (no content inspections completed). The endpoint or model "
                     "probably does not support function calling — check "
                     "tool support for this model (llama.cpp server needs "
                     "--jinja), or use a more capable model"

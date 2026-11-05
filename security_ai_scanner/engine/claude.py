@@ -8,6 +8,8 @@ edit, shell, and network tools are disallowed.
 from __future__ import annotations
 
 import sys
+from itertools import islice
+from pathlib import Path
 
 from ..exceptions import EngineError
 from .base import EngineResult, ScanEngine, ScanRequest
@@ -70,6 +72,54 @@ def _build_env(request: ScanRequest) -> dict[str, str]:
     return env
 
 
+def _content_inspection(block, root: Path) -> bool:
+    """Only scoped content reads qualify; filename discovery is not inspection."""
+    if not isinstance(block.input, dict):
+        return False
+    if block.name == "Read":
+        path = block.input.get("file_path")
+        if not isinstance(path, str) or not path:
+            return False
+    elif block.name == "Grep" and block.input.get("output_mode") == "content":
+        path = block.input.get("path", ".")
+        if not isinstance(path, str):
+            return False
+    else:
+        return False
+    try:
+        target = (root / path).resolve()
+        if target != root and root not in target.parents:
+            return False
+        if block.name == "Read":
+            offset = block.input.get("offset", 1)
+            limit = block.input.get("limit", 1)
+            if (type(offset) is not int or offset < 1
+                    or type(limit) is not int or limit < 1 or not target.is_file()):
+                return False
+            # A successful Read beyond EOF returns a notice, not file content.
+            # Check that the requested starting line exists without loading
+            # the entire file or depending on the CLI's notice wording.
+            with target.open("rb") as stream:
+                return next(islice(stream, offset - 1, offset), None) is not None
+        return target.exists()
+    except (OSError, ValueError, RuntimeError):
+        return False
+
+
+def _has_content(content) -> bool:
+    if isinstance(content, str):
+        text = content.strip()
+    elif isinstance(content, list):
+        text = "\n".join(
+            item.get("text", "") for item in content
+            if isinstance(item, dict) and item.get("type") == "text"
+            and isinstance(item.get("text"), str)
+        ).strip()
+    else:
+        return False
+    return bool(text) and text.lower() not in {"no matches found", "no matches"}
+
+
 class ClaudeAgentEngine(ScanEngine):
     """Engine backed by the Claude Agent SDK (bundled Claude Code CLI)."""
 
@@ -82,6 +132,9 @@ class ClaudeAgentEngine(ScanEngine):
                 ClaudeAgentOptions,
                 ResultMessage,
                 TextBlock,
+                ToolUseBlock,
+                ToolResultBlock,
+                UserMessage,
                 query,
             )
         except ImportError as exc:  # pragma: no cover - import guard
@@ -106,14 +159,25 @@ class ClaudeAgentEngine(ScanEngine):
                 "schema": request.output_schema,
             }
 
-        result = EngineResult()
+        result = EngineResult(successful_inspections=0)
+        pending: set[str] = set()
+        root = request.cwd.resolve()
         try:
             async for message in query(prompt=request.prompt, options=options):
                 if isinstance(message, AssistantMessage):
+                    for block in message.content:
+                        if isinstance(block, ToolUseBlock) and _content_inspection(block, root):
+                            pending.add(block.id)
                     if request.verbose:
                         for block in message.content:
                             if isinstance(block, TextBlock):
                                 print(block.text, file=sys.stderr)
+                elif isinstance(message, UserMessage) and isinstance(message.content, list):
+                    for block in message.content:
+                        if isinstance(block, ToolResultBlock) and block.tool_use_id in pending:
+                            pending.remove(block.tool_use_id)
+                            if not block.is_error and _has_content(block.content):
+                                result.successful_inspections += 1
                 elif isinstance(message, ResultMessage):
                     result.structured_output = message.structured_output
                     # Only the agent's final response is trusted as the
@@ -136,4 +200,11 @@ class ClaudeAgentEngine(ScanEngine):
         except Exception as exc:
             raise EngineError(f"Claude Agent SDK failed: {exc}") from exc
 
+        if not result.is_error and result.successful_inspections == 0:
+            result.is_error = True
+            result.structured_output = None
+            result.error_message = (
+                "model produced a final answer without inspecting any files "
+                "successfully (no scoped Read or content Grep completed)"
+            )
         return result
