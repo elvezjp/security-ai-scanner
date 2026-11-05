@@ -315,6 +315,14 @@ is `sais scan ... --fail-on none`. Findings and local gate metadata are still
 recorded, but finding exit code 1 is disabled and final policy is centralized
 in `qk`. Exit code 2 always stops the workflow.
 
+The OpenAI endpoint must return exactly one completion choice. Final answers require
+`finish_reason: "stop"` without a refusal or unfinished tool calls. A tool turn
+requires `finish_reason: "tool_calls"` and valid calls while tools are enabled.
+`length`, `content_filter`, refusal, missing/unknown termination metadata, and
+inconsistent tool states fail with exit code 2 even if the content is valid JSON.
+This also applies to the final request after a local turn/token limit; a normally
+finished partial answer still retains the existing `incomplete` status.
+
 ### 5.2 Self-hosted endpoints
 
 The Claude adapter redirects its child agent through Anthropic-compatible

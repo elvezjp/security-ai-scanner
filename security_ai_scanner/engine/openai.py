@@ -24,6 +24,7 @@ from typing import Any
 
 from ..connection import open_endpoint, redact, resolve_model, validate_connection
 from ..exceptions import EngineError
+from .completion import completion_message
 from .base import EngineResult, ScanEngine, ScanRequest
 
 #: Per-request timeout. Local models can be slow; scans are not interactive.
@@ -386,8 +387,7 @@ class OpenAICompatEngine(ScanEngine):
             result.num_turns += 1
             usage = data.get("usage") or {}
             total_tokens += int(usage.get("total_tokens") or 0)
-            choices = data.get("choices") or []
-            return (choices[0].get("message") or {}) if choices else {}
+            return completion_message(data, allow_tools=with_tools)
 
         for _ in range(request.max_turns):
             message = send(messages, with_tools=True)
