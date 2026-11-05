@@ -12,6 +12,7 @@ from itertools import islice
 from pathlib import Path
 
 from ..exceptions import EngineError
+from ..connection import redact
 from .base import EngineResult, ScanEngine, ScanRequest
 
 #: Tools the scan agent is allowed to use (read-only).
@@ -126,6 +127,9 @@ class ClaudeAgentEngine(ScanEngine):
     name = "claude"
 
     async def run(self, request: ScanRequest) -> EngineResult:
+        if request.model == "auto":
+            raise EngineError("model=auto requires the openai engine")
+        secrets = (*request.secret_values, request.auth_token)
         try:
             from claude_agent_sdk import (
                 AssistantMessage,
@@ -159,7 +163,10 @@ class ClaudeAgentEngine(ScanEngine):
                 "schema": request.output_schema,
             }
 
-        result = EngineResult(successful_inspections=0)
+        result = EngineResult(successful_inspections=0, model_provenance={"engine": "claude", **redact({
+            "model_requested": request.model,
+            "model": request.model, "model_metadata": {},
+        }, secrets)})
         pending: set[str] = set()
         root = request.cwd.resolve()
         try:
@@ -171,7 +178,7 @@ class ClaudeAgentEngine(ScanEngine):
                     if request.verbose:
                         for block in message.content:
                             if isinstance(block, TextBlock):
-                                print(block.text, file=sys.stderr)
+                                print(redact(block.text, secrets), file=sys.stderr)
                 elif isinstance(message, UserMessage) and isinstance(message.content, list):
                     for block in message.content:
                         if isinstance(block, ToolResultBlock) and block.tool_use_id in pending:
@@ -196,9 +203,9 @@ class ClaudeAgentEngine(ScanEngine):
                     result.duration_ms = message.duration_ms
                     result.total_cost_usd = message.total_cost_usd
                     if result.is_error:
-                        result.error_message = message.result or "engine error"
+                        result.error_message = redact(message.result or "engine error", secrets)
         except Exception as exc:
-            raise EngineError(f"Claude Agent SDK failed: {exc}") from exc
+            raise EngineError(redact(f"Claude Agent SDK failed: {exc}", secrets)) from None
 
         if not result.is_error and result.successful_inspections == 0:
             result.is_error = True

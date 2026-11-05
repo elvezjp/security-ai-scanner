@@ -403,3 +403,22 @@ never into the scanned repository.
 - finding triage and false-positive feedback;
 - proposed fix patches;
 - additional adapters registered through `engine/`.
+
+## Shared connection contract
+
+Connection profiles are machine-owned and use the format and precedence in
+README's Shared AI connection settings section. CLI and MCP opt in to that
+resolver; the explicit Python config API does not. Configurations and credential
+files inside the target repository are rejected before use. Credential files
+are read per run, with POSIX group/other read permissions rejected. A CLI token
+value warns without echoing the value. Transport diagnostics omit response
+bodies, and known credentials are redacted. Redirects are refused.
+
+OpenAI model=auto requires exactly one valid /models entry. Reported response
+model changes and discovered IXV beast mode are execution errors (exit 2).
+The additive schema-v1 summary extension provenance contains engine,
+model_requested, model (the selected ID), and model_metadata; metadata is limited
+to file basename, positive context_length, and ixv_mode. Model metadata does not
+implicitly alter budgets. Claude records its requested model, or null when the
+SDK chooses its default. No URL, profile, token, or credential-file path is
+recorded. This extension does not require historical artifacts to change.

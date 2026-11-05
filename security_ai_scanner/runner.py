@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import __version__
+from .connection import read_auth_token, redact, redact_output
 from .config import SEVERITY_ORDER, ScanConfig
 from .engine import EngineResult, ScanRequest, get_engine
 from .exceptions import (
@@ -192,6 +193,7 @@ def build_summary(
         # Why the scan stopped early ("budget_exceeded", "max_turns"), or
         # null for a normal completion. Findings may be partial when set.
         "stopped": stopped,
+        **({"provenance": engine_result.model_provenance} if engine_result.model_provenance is not None else {}),
         **(
             {"successful_inspections": engine_result.successful_inspections}
             if engine_result.successful_inspections is not None
@@ -266,12 +268,14 @@ def evaluate_gate(output: ScanOutput, fail_on: str) -> bool:
 async def run_scan_async(config: ScanConfig) -> ScanResult:
     """Run one scan end to end."""
     config.validate()
+    token = None
     timestamp = datetime.now(timezone.utc)
     run = create_native_run(config.target, generated_at=timestamp)
     with OutputPublication(config.output_dir, run.run_id) as publication:
         try:
             engine = get_engine(config.engine)
 
+            token = read_auth_token(config.auth_token, config.auth_token_file, target=config.target)
             request = ScanRequest(
                 prompt=build_user_prompt(config),
                 system_prompt=load_scan_system_prompt(config.language),
@@ -282,7 +286,8 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                 max_total_tokens=config.max_total_tokens,
                 verbose=config.verbose,
                 base_url=config.base_url,
-                auth_token=config.auth_token,
+                auth_token=token,
+                secret_values=tuple(str(v) for v in (token, config.auth_token_file) if v),
                 structured_output=config.use_structured_output(),
             )
 
@@ -301,6 +306,7 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                     f"turns={engine_result.num_turns})"
                 ) from exc
 
+            output = redact_output(output, request.secret_values)
             written = write_outputs(
                 config, output, run, publication, timestamp=timestamp
             )
@@ -323,6 +329,8 @@ async def run_scan_async(config: ScanConfig) -> ScanResult:
                 summary=summary,
             )
         except (ScannerError, ValueError) as exc:
+            secrets = tuple(str(v) for v in (token, config.auth_token_file) if v)
+            exc.args = (redact(str(exc), secrets),)
             publish_error_summary(config, run, publication, exc)
             raise
 

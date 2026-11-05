@@ -33,7 +33,7 @@ class TestParser:
     def test_scan_defaults(self, tmp_path):
         args = build_parser().parse_args(["scan", str(tmp_path)])
         assert args.command == "scan"
-        assert args.engine == "claude"
+        assert args.engine is None  # the connection resolver applies defaults
         assert args.fail_on == "high"
         assert args.language == "en"
         assert args.formats is None

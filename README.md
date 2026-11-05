@@ -16,6 +16,73 @@ repository with read-only tools, traces data flows from source to sink,
 and reports validated vulnerabilities as SARIF, JSON, and a
 human-readable Markdown report.
 
+## Shared AI connection settings
+
+`sais` and `cair` read the same machine-owned TOML file at
+`$XDG_CONFIG_HOME/elvez-quality-gate/config.toml` (default:
+`~/.config/elvez-quality-gate/config.toml`). Create it outside the repositories
+you scan or review:
+
+```toml
+[profiles.local]
+engine = "openai"
+base_url = "http://127.0.0.1:18080/v1"
+model = "auto"
+auth_token_file = "~/.config/elvez-quality-gate/local-token"
+```
+
+Create the token file privately and run `chmod 600` on POSIX. The file is read
+at each run, preserving all contents except one final LF or CRLF. Relative
+credential paths in a profile resolve against the configuration directory.
+A file readable by group/others, an invalid token, or a connection file inside
+the target repository is rejected, including symlink destinations and parent
+Git repositories when running from a subdirectory. No repository configuration
+is discovered automatically.
+
+```bash
+sais scan /path/to/repo --profile local --json
+cair review main...HEAD --profile local --json
+sais mcp --profile local
+```
+
+Select a profile with `--profile` or `SAIS_PROFILE` / `CAIR_PROFILE`; override
+the configuration file with `SAIS_CONFIG` / `CAIR_CONFIG`. A profile must be
+selected to read the file. Field precedence is CLI > environment > profile >
+existing defaults. Both tools accept their own `*_ENGINE`, `*_BASE_URL`,
+`*_MODEL`, `*_AUTH_TOKEN`, and `*_AUTH_TOKEN_FILE` variables. Credential value
+and credential file are one setting: a higher-priority value replaces the
+lower-priority file, and vice versa. Supplying both forms at the same level
+is an error. An explicit `--auth-token ""` suppresses lower-priority credentials.
+`--auth-token VALUE` remains supported with a process-list/history warning;
+prefer `--auth-token-file PATH` or the environment. Tokens, credential paths,
+and profile documents are never included in provenance; reflected credentials
+are redacted and HTTP error bodies are not printed. Redaction applies to free
+text after schema and evidence validation; finding keys, severity, and category
+keep their meaning even when a local token is a common word. HTTP redirects are refused.
+
+`model = "auto"` works with the OpenAI-compatible engine only. It queries
+`GET /models` and uses exactly one valid advertised model. Empty, malformed,
+or multiple-model responses fail with exit code 2 (multiple-model errors list
+up to 20 IDs). IXV beast mode is refused when reported by discovery. Each
+response's `model`, when present, must equal the selected ID; a change aborts
+without publishing findings. Discovery does not change token budgets.
+`summary.json.provenance` records `engine`, `model_requested`, `model`, and
+`model_metadata` (only `file` basename, `context_length`, and `ixv_mode` when
+provided). Endpoints and arbitrary discovery fields are excluded. Full prompt
+provenance and SARIF provenance remain separate work.
+
+MCP resolves the operator's settings when the server starts and validates
+connection-file locations against each scan target. Its model-controlled tool
+arguments cannot choose a profile, endpoint, or credential. Restart the server
+to change a profile; rotating the credential file takes effect on the next scan.
+Direct Python `ScanConfig` / `ReviewConfig` calls never load profiles or tool
+connection environment variables implicitly. Applications can explicitly opt
+in with the package's `connection.load_connection_settings(prefix="SAIS" or
+"CAIR", target=..., profile=...)`, then pass `settings.as_kwargs(target)` into
+their config. Explicit `auth_token_file` also works in the Python API. Hosted
+Claude authentication still uses the Claude SDK's own authentication mechanism.
+Timeout/retry profile fields are not yet supported.
+
 ## Features
 
 - **Agentic Analysis**: The AI agent explores the repository itself — enumerating entry points, tracing untrusted input to dangerous sinks, and validating each candidate before reporting
@@ -478,8 +545,8 @@ Tracked issues use labels `priority:P0` / `P1` / `P2` and `roadmap`.
 
 - **Path include/exclude and `.saisignore`** — keep agents out of
   `node_modules`, build artifacts, and other noise ([#3](https://github.com/elvezjp/security-ai-scanner/issues/3))
-- **Project config file** (`sais.toml` / `.sais.yaml`) — pin model, endpoint,
-  fail-on, language, and scope without fragile flag soup
+- **Project config file** (`sais.toml` / `.sais.yaml`) — pin fail-on, language, and scope;
+  connection settings belong only to machine profiles
   ([#4](https://github.com/elvezjp/security-ai-scanner/issues/4))
 - **Diff scan** — limit a scan to a PR / commit range
   ([#5](https://github.com/elvezjp/security-ai-scanner/issues/5))

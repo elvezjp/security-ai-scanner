@@ -332,7 +332,7 @@ class TestTransportErrors:
             raise exc
 
         monkeypatch.setattr(
-            openai_engine.urllib.request, "urlopen", raising_urlopen
+            openai_engine, "open_endpoint", raising_urlopen
         )
         with pytest.raises(EngineError) as caught:
             openai_engine._request_json("http://x/v1/chat/completions", {}, {})

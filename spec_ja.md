@@ -402,3 +402,18 @@ import は `mcp_server.py` に閉じる（エンジン SDK と同じ不変条件
 - `fix`: 所見に対する修正パッチ提案
 - エンジン追加: `engine/` にアダプタを追加し `get_engine()` に登録する。
   構造化出力をサポートしないエンジンはテキストフォールバック解析を利用できる
+
+## 共通接続設定の契約
+
+接続プロファイルはマシン側に置き、READMEの「共通AI接続設定」に定める形式と優先順位を使う。
+CLI・MCPは明示的にresolverを使い、Pythonの明示config APIは暗黙に読み込まない。
+対象リポジトリ内の設定・鍵ファイルは利用前に拒否する。鍵は実行ごとに読み、POSIXでは
+group/otherの読み取り権限を拒否する。CLIの鍵直接指定は値を表示せず警告する。
+通信エラーの本文は表示せず、既知の鍵を伏せる。リダイレクトは拒否する。
+
+OpenAIのmodel=autoは有効な/modelsエントリが1つの場合だけ採用する。応答で報告された
+モデルの変化や、discoveryで検出したIXV beast modeは実行エラー（終了コード2）とする。
+schema-v1のsummaryに追加するprovenanceは、engine、model_requested、model（選択ID）、
+model_metadataを持つ。metadataはfileのファイル名、正のcontext_length、ixv_modeだけに限定し、
+予算を暗黙には変更しない。Claudeは指定モデルを記録し、SDKの既定に任せる場合はnullとする。
+URL・プロファイル・鍵・鍵ファイルのパスは記録しない。過去の成果物の変更は要求しない。

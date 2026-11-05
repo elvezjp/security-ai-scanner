@@ -37,10 +37,11 @@ class ScanConfig:
     #: Base URL of an Anthropic-compatible endpoint (local LLM server).
     base_url: str | None = None
     #: Auth token sent to that endpoint. Local servers usually accept any value.
-    auth_token: str | None = None
+    auth_token: str | None = field(default=None, repr=False)
     #: Request schema-constrained structured output. Disable for backends
     #: that do not support it; the scanner then parses JSON from the text.
     structured_output: bool | None = None
+    auth_token_file: Path | None = field(default=None, repr=False)
 
     def use_structured_output(self) -> bool:
         """Whether to request schema-constrained output.
@@ -54,6 +55,9 @@ class ScanConfig:
 
     def validate(self) -> None:
         from .exceptions import TargetError
+        from .connection import validate_connection
+
+        validate_connection(self.engine, self.base_url, self.model, self.auth_token, self.auth_token_file)
 
         if not self.target.exists():
             raise TargetError(f"Scan target does not exist: {self.target}")

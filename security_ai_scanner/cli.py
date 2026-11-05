@@ -16,6 +16,7 @@ from pathlib import Path
 
 from . import __version__
 from .config import FAIL_ON_CHOICES, OUTPUT_FORMATS, ScanConfig
+from .connection import enclosing_repository, load_connection_settings
 from .exceptions import ScannerError, get_published_summary
 
 EXIT_OK = 0
@@ -50,7 +51,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     scan.add_argument(
         "--engine",
-        default="claude",
+        default=None,
         choices=("claude", "openai"),
         help=(
             "AI engine backend: 'claude' (Claude Agent SDK, hosted API or "
@@ -188,22 +189,38 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    subparsers.add_parser(
+    mcp = subparsers.add_parser(
         "mcp",
         help=(
             "Serve the scanner as an MCP server on stdio (requires the "
             "'mcp' extra: pip install 'security-ai-scanner[mcp]')"
         ),
     )
+    for command in (scan, mcp):
+        command.add_argument("--profile", help="Machine connection profile (or SAIS_PROFILE)")
+        command.add_argument("--auth-token-file", type=Path, help="Private credential file (or SAIS_AUTH_TOKEN_FILE)")
+    mcp.add_argument("--engine", choices=("claude", "openai"))
+    mcp.add_argument("--base-url")
+    mcp.add_argument("--model")
+    mcp.add_argument("--auth-token")
     return parser
+
+
+def _connection_from_args(args, target=None):
+    if args.auth_token is not None:
+        print("warning: --auth-token values are visible in process lists and shell history; prefer a file or environment variable", file=sys.stderr)
+    return load_connection_settings(
+        prefix="SAIS", target=target, profile=args.profile, engine=args.engine,
+        base_url=args.base_url, model=args.model, auth_token=args.auth_token,
+        auth_token_file=args.auth_token_file,
+    )
 
 
 def _config_from_args(args: argparse.Namespace) -> ScanConfig:
     return ScanConfig(
         target=args.target,
         output_dir=args.output_dir,
-        engine=args.engine,
-        model=args.model or os.environ.get("SAIS_MODEL") or None,
+        **_connection_from_args(args, args.target).as_kwargs(args.target),
         language=args.language,
         context=args.context,
         fail_on=args.fail_on,
@@ -211,15 +228,6 @@ def _config_from_args(args: argparse.Namespace) -> ScanConfig:
         max_turns=args.max_turns,
         max_total_tokens=args.max_total_tokens,
         verbose=args.verbose,
-        base_url=args.base_url,
-        # An explicitly passed --auth-token wins even when it is empty:
-        # `--auth-token ""` must not silently fall through to a token in
-        # the environment that was meant for a different endpoint.
-        auth_token=(
-            args.auth_token
-            if args.auth_token is not None
-            else os.environ.get("SAIS_AUTH_TOKEN") or None
-        ),
         structured_output=args.structured_output,
     )
 
@@ -302,7 +310,11 @@ def main(argv: list[str] | None = None) -> int:
                 file=sys.stderr,
             )
             return EXIT_ERROR
-        return mcp_main()
+        try:
+            return mcp_main(connection=_connection_from_args(args, enclosing_repository(Path.cwd())))
+        except (ScannerError, ValueError) as exc:
+            print(f"error: {exc}", file=sys.stderr)
+            return EXIT_ERROR
 
     parser.error(f"Unknown command: {args.command}")  # pragma: no cover
     return EXIT_ERROR  # pragma: no cover

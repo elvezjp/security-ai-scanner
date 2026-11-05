@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 from typing import Any
 
+from ..connection import open_endpoint, redact, resolve_model, validate_connection
 from ..exceptions import EngineError
 from .base import EngineResult, ScanEngine, ScanRequest
 
@@ -119,29 +120,21 @@ def _request_json(
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, headers=headers)
     try:
-        with urllib.request.urlopen(
+        with open_endpoint(
             request, timeout=REQUEST_TIMEOUT_SECONDS
         ) as response:
             return json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as exc:
-        body = exc.read().decode("utf-8", errors="replace")[:500]
-        raise EngineError(
-            f"Endpoint returned HTTP {exc.code} for {url}: {body}"
-        ) from exc
-    except urllib.error.URLError as exc:
-        raise EngineError(f"Cannot reach endpoint {url}: {exc.reason}") from exc
-    except TimeoutError as exc:
-        raise EngineError(
-            f"Request to {url} timed out after {REQUEST_TIMEOUT_SECONDS}s"
-        ) from exc
-    except (OSError, http.client.HTTPException) as exc:
-        # Sockets can fail mid-read with raw OS or http.client errors that
-        # urllib does not wrap in URLError; keep the exit-code contract
-        # (engine failure = 2, never the CI-gate code 1).
-        raise EngineError(f"Transport error for {url}: {exc}") from exc
-    except json.JSONDecodeError as exc:
-        raise EngineError(f"Endpoint returned invalid JSON: {exc}") from exc
-
+        # Error bodies and URLs can reflect Authorization or private paths.
+        raise EngineError(f"Endpoint returned HTTP {exc.code}") from None
+    except urllib.error.URLError:
+        raise EngineError("Cannot reach configured endpoint") from None
+    except TimeoutError:
+        raise EngineError(f"Endpoint request timed out after {REQUEST_TIMEOUT_SECONDS}s") from None
+    except (OSError, http.client.HTTPException):
+        raise EngineError("Transport error at configured endpoint") from None
+    except (json.JSONDecodeError, UnicodeError):
+        raise EngineError("Endpoint returned invalid JSON") from None
 
 
 def _clip_line(line: str, limit: int = MAX_LINE_CHARS) -> str:
@@ -320,7 +313,7 @@ def _missing_model_error(base_url: str, headers: dict[str, str]) -> EngineError:
         ]
         if names:
             listing = "\n".join(f"  {name}" for name in names[:20])
-            message += f"\nModels available at {base_url}:\n{listing}"
+            message += f"\nModels available:\n{listing}"
     except EngineError:
         pass  # listing is best-effort; the base error stands on its own
     return EngineError(message)
@@ -341,8 +334,14 @@ class OpenAICompatEngine(ScanEngine):
             "Authorization": f"Bearer {request.auth_token or 'local'}",
             "Content-Type": "application/json",
         }
-        if not request.model:
-            raise _missing_model_error(request.base_url, headers)
+        secrets = (*request.secret_values, request.auth_token)
+        try:
+            validate_connection("openai", request.base_url, request.model, request.auth_token, None)
+            if not request.model:
+                raise _missing_model_error(request.base_url, headers)
+            resolved_model, metadata = resolve_model(request.model, request.base_url, headers, _request_json)
+        except (ValueError, EngineError) as exc:
+            raise EngineError(redact(str(exc), secrets)) from None
 
         url = request.base_url.rstrip("/") + "/chat/completions"
         tools = ReadOnlyTools(request.cwd)
@@ -351,7 +350,10 @@ class OpenAICompatEngine(ScanEngine):
             {"role": "user", "content": request.prompt},
         ]
 
-        result = EngineResult()
+        result = EngineResult(model_provenance={"engine": "openai", **redact({
+            "model_requested": request.model,
+            "model": resolved_model, "model_metadata": metadata,
+        }, secrets)})
         start = time.monotonic()
         total_tokens = 0
         final_text: str | None = None
@@ -359,7 +361,7 @@ class OpenAICompatEngine(ScanEngine):
         def send(payload_messages, *, with_tools: bool) -> dict[str, Any]:
             nonlocal total_tokens
             payload: dict[str, Any] = {
-                "model": request.model,
+                "model": resolved_model,
                 "messages": payload_messages,
             }
             if with_tools:
@@ -373,7 +375,14 @@ class OpenAICompatEngine(ScanEngine):
                         "schema": request.output_schema,
                     },
                 }
-            data = _request_json(url, payload, headers)
+            try:
+                data = _request_json(url, payload, headers)
+            except EngineError as exc:
+                raise EngineError(redact(str(exc), secrets)) from None
+            if not isinstance(data, dict):
+                raise EngineError("Endpoint returned a non-object response")
+            if "model" in data and data["model"] != resolved_model:
+                raise EngineError("Endpoint response model changed from the selected model")
             result.num_turns += 1
             usage = data.get("usage") or {}
             total_tokens += int(usage.get("total_tokens") or 0)

@@ -29,6 +29,7 @@ from typing import Any
 from mcp.server.fastmcp import Context, FastMCP
 
 from .config import SEVERITY_ORDER, ScanConfig
+from .connection import ConnectionSettings
 from .exceptions import ScannerError
 from .runner import ScanResult, run_scan_async
 
@@ -47,6 +48,7 @@ server = FastMCP(
 
 #: Completed scans by scan_id, newest last. Process-local by design.
 _RESULTS: dict[str, ScanResult] = {}
+_CONNECTION = ConnectionSettings(engine="claude")
 
 
 def _next_scan_id() -> str:
@@ -83,6 +85,7 @@ async def scan_repository(
         language=language,
         fail_on=fail_on,
         context=context,
+        **_CONNECTION.as_kwargs(target),
     )
     if ctx is not None:
         await ctx.report_progress(0, None, f"Scanning {target} ...")
@@ -145,7 +148,13 @@ def _get(scan_id: str) -> ScanResult:
     return _RESULTS[scan_id]
 
 
-def main() -> int:
+def main(*, connection: ConnectionSettings | None = None) -> int:
     """Entry point for ``sais mcp``: serve on stdio until the client exits."""
-    server.run()
+    global _CONNECTION
+    previous = _CONNECTION
+    _CONNECTION = connection or ConnectionSettings(engine="claude")
+    try:
+        server.run()
+    finally:
+        _CONNECTION = previous
     return 0

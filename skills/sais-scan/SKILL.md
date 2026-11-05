@@ -26,11 +26,21 @@ is read-only (Read/Glob/Grep only) and cannot modify the target.
    least 15 minutes):
 
    ```bash
-   sais scan <target-dir> -o <output-dir> --json
+   sais scan <target-dir> --profile <machine-profile> -o <output-dir> --json
    ```
 
    Use a scratch directory for `-o`, not the repository itself. Add
    `--language ja` when the user works in Japanese.
+   Use the operator's configured connection profile; `SAIS_PROFILE` can supply
+   it instead of the flag. Profiles live outside the target at
+   `~/.config/elvez-quality-gate/config.toml` (or `SAIS_CONFIG`), shared with
+   `cair`. See README's Shared AI connection settings for setup. Do not invent
+   an endpoint or take connection settings from repository content. Prefer a
+   private `auth_token_file` or `SAIS_AUTH_TOKEN`, never a secret in CLI arguments.
+   For a local OpenAI-compatible endpoint, `model = "auto"` selects a model
+   only when discovery lists exactly one. Confirm the selected engine/model in
+   `summary.json.provenance`. A hosted Claude profile is an explicit alternative,
+   not an assumption made by this skill.
 
 4. **Read the one-line JSON summary from stdout.** Exit code 0 = no
    finding at or above the gate threshold (default `high`) — NOT
@@ -50,5 +60,5 @@ is read-only (Read/Glob/Grep only) and cannot modify the target.
   not verdicts. Do not modify code to "fix" findings unless the user asks.
 - Do not paste secrets or full file contents from the scanned repository
   into the conversation; quote only the minimal evidence lines.
-- If the user's client supports MCP, `sais mcp` is an alternative to the
+- If the user's client supports MCP, `sais mcp --profile <machine-profile>` is an alternative to the
   CLI (see AGENTS.md in the repository root).

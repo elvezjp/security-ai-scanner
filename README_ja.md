@@ -16,6 +16,64 @@ LLM エージェントが読み取り専用ツールでリポジトリを読み�
 （シンク）までのデータフローを追跡・検証した上で、SARIF・JSON・Markdown
 レポートとして脆弱性を報告します。
 
+## 共通AI接続設定
+
+`sais` と `cair` は、マシン側の同じTOMLファイルを読みます。配置先は
+`$XDG_CONFIG_HOME/elvez-quality-gate/config.toml`（既定は
+`~/.config/elvez-quality-gate/config.toml`）です。点検・レビュー対象の
+リポジトリの外に作成してください。
+
+```toml
+[profiles.local]
+engine = "openai"
+base_url = "http://127.0.0.1:18080/v1"
+model = "auto"
+auth_token_file = "~/.config/elvez-quality-gate/local-token"
+```
+
+鍵ファイルは非公開で作成し、POSIXでは `chmod 600` を実行します。毎回の実行時に読み、
+末尾のLFまたはCRLFを1つだけ除去して他の内容は保持します。プロファイル内の相対的な
+鍵ファイルパスは設定ファイルのディレクトリを基準に解決します。group/otherが読める鍵、
+不正な鍵、対象リポジトリ内の接続ファイルは拒否します。symlinkの参照先や、サブディレクトリ
+から実行した場合の親Gitリポジトリも確認します。リポジトリ内の設定を自動探索しません。
+
+```bash
+sais scan /path/to/repo --profile local --json
+cair review main...HEAD --profile local --json
+sais mcp --profile local
+```
+
+`--profile` または `SAIS_PROFILE` / `CAIR_PROFILE` で選択し、設定ファイルの場所は
+`SAIS_CONFIG` / `CAIR_CONFIG` で変更できます。プロファイルが選択された場合だけファイルを
+読みます。項目の優先順位はCLI ＞ 環境変数 ＞ プロファイル ＞ 従来の既定値です。
+両ツールは、それぞれの接頭辞を持つ `*_ENGINE`、`*_BASE_URL`、`*_MODEL`、
+`*_AUTH_TOKEN`、`*_AUTH_TOKEN_FILE` を受け付けます。鍵の値と鍵ファイルは1つの設定として
+扱い、上位の指定が下位の形式を置き換えます。同じ優先段階で両方を指定した場合はエラーです。
+`--auth-token ""` は下位の鍵を使わない明示指定です。`--auth-token VALUE` は互換性のため
+残し、プロセス一覧・シェル履歴への露出を警告します。`--auth-token-file PATH` または環境変数を
+推奨します。鍵・鍵ファイルのパス・プロファイル文書はprovenanceに含めず、接続先が返した
+文面中の既知の鍵は、スキーマ・根拠の検証後に自由記述部分だけで伏せます。鍵が一般的な語でも、
+所見のキー・重要度・カテゴリの意味は変えません。HTTPエラー本文は表示せず、HTTPリダイレクトは拒否します。
+
+`model = "auto"` はOpenAI互換エンジン専用です。`GET /models` が有効なモデルを1つだけ
+返した場合に採用します。空・不正・複数候補の場合は終了コード2で停止し、複数候補のエラーには
+最大20件のIDを表示します。discoveryがIXVのbeast modeを報告した場合も拒否します。
+後続応答に `model` がある場合は選択IDとの一致を必須とし、変更された場合は所見を公開せず
+停止します。discoveryによるトークン予算の自動変更はしません。
+`summary.json.provenance` には `engine`、`model_requested`、`model`、`model_metadata`
+（提供された場合の `file` のファイル名、`context_length`、`ixv_mode` のみ）を記録します。
+接続先URLや任意のdiscovery項目は含めません。プロンプトやSARIFの完全なprovenanceは別対応です。
+
+MCPはサーバー起動時に運用者の設定を解決し、スキャンごとに接続ファイルの場所を対象と照合します。
+AIが決めるツール引数には、プロファイル・接続先・鍵を指定できません。プロファイル変更時は
+サーバーを再起動します。鍵ファイルの更新は次のスキャンで反映されます。
+Pythonの `ScanConfig` / `ReviewConfig` は、プロファイルやツール用接続環境変数を暗黙に読みません。
+必要なアプリケーションだけ、各パッケージの
+`connection.load_connection_settings(prefix="SAIS" または "CAIR", target=..., profile=...)`
+を明示的に呼び、`settings.as_kwargs(target)` をconfigに渡せます。
+Python APIでも明示的な `auth_token_file` を利用できます。ホスト型Claudeの認証は引き続き
+Claude SDK固有の認証機構に従います。timeout/retryのプロファイル項目はまだ受け付けません。
+
 ## 特徴
 
 - **エージェント型解析**: AI エージェント自身がリポジトリを探索します。エントリポイントの列挙、信頼できない入力の追跡、報告前の妥当性検証までを一貫して行います
@@ -474,7 +532,7 @@ security-ai-scanner/
 ### P0 — 公開 CI・ローカルスキャンでまず使えること
 
 - **パス include/exclude と `.saisignore`** — `node_modules` やビルド成果物などノイズを除外（[#3](https://github.com/elvezjp/security-ai-scanner/issues/3)）
-- **プロジェクト設定ファイル**（`sais.toml` / `.sais.yaml`）— モデル・エンドポイント・fail-on・言語・スコープを固定（[#4](https://github.com/elvezjp/security-ai-scanner/issues/4)）
+- **プロジェクト設定ファイル**（`sais.toml` / `.sais.yaml`）— fail-on・言語・スコープを固定。接続設定はマシン側プロファイルだけで管理（[#4](https://github.com/elvezjp/security-ai-scanner/issues/4)）
 - **差分スキャン** — PR・コミット範囲に限定（[#5](https://github.com/elvezjp/security-ai-scanner/issues/5)）
 - **ベースライン・抑止・安定した所見 ID** — 反復する誤検出で毎回 CI が落ちないようにする（[#6](https://github.com/elvezjp/security-ai-scanner/issues/6)）
 
