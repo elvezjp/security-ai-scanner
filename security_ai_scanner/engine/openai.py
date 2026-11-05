@@ -31,6 +31,8 @@ REQUEST_TIMEOUT_SECONDS = 600
 #: Caps on tool output, so one tool call cannot flood the context window.
 MAX_READ_LINES = 2000
 MAX_LINE_CHARS = 500
+#: grep shows less of each matching line than read_file.
+MAX_GREP_LINE_CHARS = 200
 MAX_GLOB_RESULTS = 200
 MAX_GREP_MATCHES = 200
 #: Files larger than this are skipped by read_file / grep (binary blobs, bundles).
@@ -141,6 +143,17 @@ def _request_json(
         raise EngineError(f"Endpoint returned invalid JSON: {exc}") from exc
 
 
+
+def _clip_line(line: str, limit: int = MAX_LINE_CHARS) -> str:
+    """Cap a line for the model, saying so when anything was cut.
+
+    Silent truncation is an evasion channel: code placed after a run of
+    padding would be invisible while the line looked complete.
+    """
+    if len(line) <= limit:
+        return line
+    return f"{line[:limit]} [line truncated: {len(line) - limit} more characters]"
+
 class ReadOnlyTools:
     """The read-only toolset, sandboxed to one directory tree.
 
@@ -200,7 +213,7 @@ class ReadOnlyTools:
         if not window:
             return f"(empty range: file has {len(lines)} lines)"
         numbered = [
-            f"{offset + i}\t{line[:MAX_LINE_CHARS]}"
+            f"{offset + i}\t{_clip_line(line)}"
             for i, line in enumerate(window)
         ]
         if offset - 1 + limit < len(lines):
@@ -253,7 +266,8 @@ class ReadOnlyTools:
                 continue
             for lineno, line in enumerate(text.splitlines(), 1):
                 if regex.search(line):
-                    matches.append(f"{rel}:{lineno}: {line.strip()[:200]}")
+                    shown = _clip_line(line.strip(), MAX_GREP_LINE_CHARS)
+                    matches.append(f"{rel}:{lineno}: {shown}")
                     if len(matches) >= MAX_GREP_MATCHES:
                         matches.append("(truncated: narrow the pattern)")
                         return "\n".join(matches)

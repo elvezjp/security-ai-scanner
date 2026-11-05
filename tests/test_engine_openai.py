@@ -306,6 +306,22 @@ class TestReadOnlyTools:
         assert lines[1] == "4\tL4"
         assert "truncated" in lines[2]
 
+    def test_long_lines_are_marked_not_silently_cut(self, tmp_path):
+        # Code hidden behind padding must not look like a complete line.
+        hidden = " " * openai_engine.MAX_LINE_CHARS + "os.system(payload)"
+        (tmp_path / "f.py").write_text(f"x = 1\n{hidden}\n", "utf-8")
+        tools = ReadOnlyTools(tmp_path)
+        lines = tools.call("read_file", {"path": "f.py"}).splitlines()
+        assert lines[0] == "1\tx = 1"
+        assert lines[1].endswith("[line truncated: 18 more characters]")
+        grep = tools.call("grep", {"pattern": "payload"})
+        assert "[line truncated:" not in grep  # stripped line fits
+        long_match = "needle " + "y" * openai_engine.MAX_GREP_LINE_CHARS
+        (tmp_path / "g.txt").write_text(long_match, "utf-8")
+        assert "[line truncated: 7 more characters]" in tools.call(
+            "grep", {"pattern": "needle"}
+        )
+
 
 class TestTransportErrors:
     """Transport failures must surface as EngineError (CLI exit 2), never
