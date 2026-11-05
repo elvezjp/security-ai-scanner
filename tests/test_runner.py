@@ -465,3 +465,70 @@ class TestSummaryEngineAccounting:
         result = run_scan(_config(repo, tmp_path))
         assert result.summary["total_tokens"] is None
         assert result.summary["stopped"] is None
+
+
+class TestPrepass:
+    def test_prompt_carries_prepass_facts(self, repo, tmp_path, mock_engine):
+        (repo / "AGENTS.md").write_text("rules\n")
+        mock_engine["result"] = _structured()
+        run_scan(_config(repo, tmp_path))
+        prompt = mock_engine["engine"].last_request.prompt
+        assert "<deterministic_prepass>" in prompt
+        assert '"agent_config"' in prompt
+
+    def test_deterministic_finding_survives_clean_engine(
+        self, repo, tmp_path, mock_engine
+    ):
+        (repo / "auth.py").write_text("x = 1\u202e\n", encoding="utf-8")
+        mock_engine["result"] = _structured()
+        result = run_scan(_config(repo, tmp_path))
+        assert result.gate_failed is True
+        assert [f.cwe for f in result.output.findings] == ["CWE-451"]
+        assert result.output.findings[0].id == "SAIS-0001"
+        summary = json.loads((tmp_path / "out" / "summary.json").read_text())
+        assert summary["prepass"]["deterministic_findings"] == 1
+        assert summary["counts"]["high"] == 1
+
+    def test_engine_duplicate_is_replaced_and_ids_renumbered(
+        self, repo, tmp_path, mock_engine
+    ):
+        (repo / "auth.py").write_text("x = 1\u202e\n", encoding="utf-8")
+        mock_engine["result"] = _structured(
+            findings=[
+                {
+                    "title": "dup",
+                    "severity": "medium",
+                    "confidence": "low",
+                    "file": "auth.py",
+                    "start_line": 1,
+                    "cwe": "CWE-451",
+                    "description": "d",
+                    "recommendation": "r",
+                },
+                {
+                    "title": "sqli",
+                    "severity": "critical",
+                    "confidence": "high",
+                    "file": "app.py",
+                    "start_line": 1,
+                    "cwe": "CWE-89",
+                    "description": "d",
+                    "recommendation": "r",
+                },
+            ]
+        )
+        result = run_scan(_config(repo, tmp_path))
+        assert [(f.id, f.cwe) for f in result.output.findings] == [
+            ("SAIS-0001", "CWE-89"),
+            ("SAIS-0002", "CWE-451"),
+        ]
+
+    def test_blind_spots_are_recorded_in_summary(
+        self, repo, tmp_path, mock_engine
+    ):
+        (repo / "min.js").write_text("a" * 600 + "\n")
+        mock_engine["result"] = _structured()
+        result = run_scan(_config(repo, tmp_path))
+        assert result.summary["prepass"]["blind_spots"] == [
+            {"path": "min.js", "reason": "long_line"}
+        ]
