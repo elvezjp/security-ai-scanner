@@ -284,6 +284,8 @@ additional derived outputs; `json` remains accepted for CLI compatibility.
   failures before publication use the legacy minimal error object.
 - Discord and Slack messages contain counts and verdict only, never detailed
   findings or source paths.
+- Incomplete scans explicitly show `INCOMPLETE` and the stop reason. The local
+  finding threshold is displayed separately and does not imply completed analysis.
 - Notification failure emits one stderr warning and never changes the scan exit
   code.
 - A webhook URL is a secret and is never printed in logs or errors.
