@@ -387,7 +387,8 @@ recorded as `skipped_directory` blind spots.
 
 The prompt carries locations and kinds only, never matched text, inside a
 `<deterministic_prepass>` block marked as untrusted. At most 200 candidates and
-200 blind spots reach the prompt; truncation is flagged.
+200 blind spots and 200 deterministic findings reach the prompt; truncation is
+flagged. Every deterministic finding is still reported.
 
 ## 7. Library API
 

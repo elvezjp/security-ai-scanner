@@ -157,3 +157,14 @@ def test_unreadable_directory_is_a_blind_spot(tmp_path, monkeypatch):
     monkeypatch.setattr(os, "scandir", scandir)
     spots = [(s.path, s.reason) for s in run_prepass(tmp_path).blind_spots]
     assert spots == [("locked", "unreadable")]
+
+
+def test_deterministic_findings_in_prompt_are_capped(tmp_path, monkeypatch):
+    monkeypatch.setattr(prepass_module, "MAX_PROMPT_CANDIDATES", 2)
+    for i in range(3):
+        (tmp_path / f"f{i}.py").write_text(f"x = 1{BIDI}\n", encoding="utf-8")
+    result = run_prepass(tmp_path)
+    facts = result.prompt_facts()
+    assert len(result.findings) == 3
+    assert len(facts["deterministic_findings"]) == 2
+    assert facts["deterministic_findings_truncated"] is True

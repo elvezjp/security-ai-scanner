@@ -186,8 +186,10 @@ class PrepassResult:
         return {
             "deterministic_findings": [
                 {"file": f.file, "line": f.start_line, "cwe": f.cwe}
-                for f in self.findings
+                for f in self.findings[:MAX_PROMPT_CANDIDATES]
             ],
+            "deterministic_findings_truncated": len(self.findings)
+            > MAX_PROMPT_CANDIDATES,
             "candidates": [item.to_dict() for item in candidates],
             "candidates_truncated": len(self.candidates) > len(candidates),
             "blind_spots": [
