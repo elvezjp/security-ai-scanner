@@ -2,7 +2,7 @@
 
 [English](spec.md) | [日本語](spec_ja.md)
 
-Version: 0.3.0 / Last updated: 2026-08-25
+Version: 0.3.0 / Last updated: 2026-11-05
 
 This document defines the technical specification of `security-ai-scanner`.
 See `README.md` for user-facing instructions.
@@ -28,21 +28,25 @@ find security vulnerabilities in a source-code repository.
 - Input: a repository directory on the local filesystem.
 - Output: structured JSON findings, SARIF 2.1.0, and a Markdown report.
 - Current scan scope: one full repository path through the `scan` command.
-- Reserved scope: path exclusions, configuration files, diff scans, baselines,
-  additional engines, profiles, batches, local-LLM hardening, triage,
+- Reserved scope: path exclusions, repository configuration files, diff scans,
+  baselines, scan (methodology) profiles, batches, local-LLM hardening, triage,
   benchmarks, release maturity, and fix proposals. The README roadmap and
   Issues #3 through #13 track these features after schema-version-1 adoption.
+  The second engine (`openai`) and machine connection profiles are implemented;
+  scan profiles are a separate feature (#8).
 
 ## 2. Architecture
 
 ```text
 cli.py ──▶ runner.py ──▶ engine/ (adapter layer) ──▶ AI backend
               │
+              ├─▶ connection.py connection profiles and credentials
               ├─▶ prepass.py   deterministic checks before the engine
               ├─▶ prompts/     scan methodology
               ├─▶ findings.py  finding schema and validation
               ├─▶ sarif.py     SARIF output
-              └─▶ report.py    Markdown report
+              ├─▶ report.py    Markdown report
+              └─▶ native.py / publication.py  run identity and publication
 ```
 
 ### 2.1 Layer responsibilities
@@ -56,9 +60,15 @@ cli.py ──▶ runner.py ──▶ engine/ (adapter layer) ──▶ AI backen
 | `prepass.py` | Deterministic checks before the engine: findings, candidates, blind spots | None |
 | `sarif.py` | SARIF 2.1.0 conversion | None |
 | `report.py` | English and Japanese Markdown reports | None |
+| `native.py` | Schema-version-1 run identity and subject resolution (§4.3) | None |
+| `publication.py` | Output lock and atomic artifact publication (§4.2) | None |
+| `connection.py` | Machine connection profiles, credential files, redaction, and `model = "auto"` (Shared connection contract) | None |
+| `notify.py` | Webhook notification (§5.3) | None |
+| `mcp_server.py` | MCP server (§9); the only `mcp` import | None |
 | `prompts/` | Backend-neutral scan methodology | None |
 | `engine/base.py` | `ScanEngine`, `ScanRequest`, `EngineResult`, and registry | None |
-| `engine/<name>.py` | One backend adapter | Yes, isolated here |
+| `engine/completion.py` | Completion-integrity checks for OpenAI-compatible responses (§5.1) | None |
+| `engine/<name>.py` | One backend adapter (`claude`, `openai`) | Yes, isolated here |
 
 Invariant: an engine SDK import remains inside `engine/<name>.py`.
 
@@ -67,11 +77,14 @@ Invariant: an engine SDK import remains inside `engine/<name>.py`.
 An engine receives `ScanRequest` and returns `EngineResult`.
 
 - Input includes `prompt`, `system_prompt`, target `cwd`, finding
-  `output_schema`, model, turn limit, verbosity, optional `base_url` and
-  `auth_token`, and structured-output selection.
-- Output includes preferred `structured_output`, fallback `text`, `is_error`,
-  turn count, duration, token usage when available, cost when available, and a
-  stopped reason when analysis is partial.
+  `output_schema`, model, turn limit, optional whole-scan token budget,
+  verbosity, optional `base_url` and `auth_token`, structured-output selection,
+  and the known secret values to redact.
+- Output includes preferred `structured_output`, fallback `text`, `is_error`
+  and an error message, turn count, duration, token usage when available, cost
+  when available, a stopped reason when analysis is partial, the count of
+  successful content inspections (§5.2), and the model provenance (Shared
+  connection contract). The last two are written to `summary.json`.
 - The agent is read-only for the target. The Claude adapter allows Read, Glob,
   and Grep and denies shell, write, edit, notebook, and web tools. The OpenAI
   adapter exposes equivalent Python-implemented read-only tools.
@@ -84,20 +97,20 @@ The engine-facing `FINDINGS_SCHEMA` requests:
 {
   "findings": [
     {
-      "title": "required string",
-      "severity": "critical|high|medium|low|info",
-      "confidence": "high|medium|low",
-      "file": "required repository-relative POSIX path",
-      "start_line": 1,
-      "end_line": 2,
-      "cwe": "CWE-89",
-      "description": "required string",
-      "recommendation": "required string",
-      "evidence": "minimal source excerpt"
+      "title": "string (required)",
+      "severity": "critical|high|medium|low|info (required)",
+      "confidence": "high|medium|low (required)",
+      "file": "repository-relative POSIX path (required)",
+      "start_line": "integer (required)",
+      "end_line": "integer (optional)",
+      "cwe": "for example CWE-89 (optional)",
+      "description": "string (required)",
+      "recommendation": "string (required)",
+      "evidence": "minimal source excerpt (optional)"
     }
   ],
-  "summary": "required string",
-  "files_reviewed": 0
+  "summary": "string (required)",
+  "files_reviewed": "integer (optional)"
 }
 ```
 
@@ -177,6 +190,13 @@ identity and subject values.
   "cost_usd": 1.23,
   "total_tokens": 45678,
   "stopped": null,
+  "provenance": {
+    "engine": "claude",
+    "model_requested": null,
+    "model": null,
+    "model_metadata": {}
+  },
+  "successful_inspections": 31,
   "prepass": {
     "files_scanned": 120,
     "deterministic_findings": 0,
@@ -204,9 +224,13 @@ identity and subject values.
 - Exit codes retain their meanings: 0 local gate pass, 1 local gate failure,
   and 2 execution error. An incomplete run returning 0 or 1 is not proof of
   completeness.
-- Usage and cost fields are `null` when the engine cannot account for them.
-- A non-null `stopped`, including an unknown future value, means partial output
-  and therefore `status: incomplete`.
+- `cost_usd` is `null` for every `--base-url` run, even if the engine reports a
+  cost, and when the engine cannot account for it. With the openai engine,
+  `total_tokens` counts only server-reported `usage` (0 when the server omits it).
+- `stopped` is `budget_exceeded` or `max_turns`; the claude engine can also
+  report `max_budget_usd` or another SDK terminal reason. A non-null `stopped`,
+  including an unknown future value, means partial output and therefore
+  `status: incomplete`.
 - Every engine error flag is an execution error even if the engine supplied
   other output. A backend adapter may normalize a known limit or cancellation
   into non-error partial output by setting a non-null `stopped` reason; the
@@ -238,12 +262,16 @@ identity and subject values.
   findings, candidates found and how many reached the prompt, and blind spots
   (at most 200 listed, with `blind_spots_total` and `blind_spots_truncated`).
   Error summaries omit it.
+- `provenance` records the engine and model (Shared connection contract), and
+  `successful_inspections` counts qualifying content inspections (§5.2). Both
+  appear on completed and incomplete runs; error summaries omit them.
 
 ### 4.1 SARIF mapping
 
 - `ruleId` is the CWE or `SAIS-GENERIC`.
 - critical/high maps to `error`, medium to `warning`, and low/info to `note`.
-- Numeric `security-severity` is 9.5, 8.0, 5.0, 3.0, or 0.0 respectively.
+- `security-severity` is the numeric string `"9.5"`, `"8.0"`, `"5.0"`,
+  `"3.0"`, or `"0.0"` respectively.
 - Paths use `uriBaseId: SRCROOT` relative to the scanned root.
 - Finding properties retain severity, confidence, and title; the run-local ID
   is stored in `partialFingerprints["sais/id"]`.
@@ -269,7 +297,8 @@ object in both native artifacts.
 - `dirty` is `true` when the scanned content differs from `HEAD` within the
   scanned root: tracked files with uncommitted modifications, or untracked
   files. The scanner reads the working tree, so untracked content contributes
-  to the analysis and counts as dirty.
+  to the analysis and counts as dirty. Gitignored files are also analyzed but
+  do not make `dirty` true.
 - `content_digest` is `null`. A full-repository scan defines no deterministic
   content normalization, and the common specification forbids inventing a
   digest.
@@ -284,21 +313,29 @@ sais scan TARGET [options]
 | Option | Default | Description |
 |---|---|---|
 | `-o/--output-dir` | `./security-scan-results` | Output directory |
-| `--engine` | `claude` | Registered engine: `claude` or `openai` |
-| `--model` | None | Engine model; `SAIS_MODEL` is also accepted and OpenAI requires a value |
+| `--profile` | `SAIS_PROFILE` | Machine connection profile (Shared connection contract) |
+| `--engine` | `claude` | Registered engine: `claude` or `openai`; `SAIS_ENGINE` or a profile is also accepted |
+| `--model` | None | Engine model; `SAIS_MODEL` or a profile is also accepted. OpenAI requires a value; `auto` selects the single model advertised by `GET /models` (openai only) |
 | `--language` | `en` | `en` or `ja` |
 | `--context` | None | Additional context, handled as untrusted input |
 | `--fail-on` | `high` | Local CI threshold; `none` disables finding exit code 1 |
 | `--format` | All formats | Repeatable `json`, `sarif`, or `markdown` selection |
-| `--base-url` | None | Anthropic-compatible Claude or OpenAI-compatible OpenAI endpoint |
-| `--auth-token` | None | Authentication token for `--base-url` |
+| `--base-url` | None | Anthropic-compatible Claude or OpenAI-compatible OpenAI endpoint; `SAIS_BASE_URL` or a profile is also accepted |
+| `--auth-token` | None | Authentication token for `--base-url` (`SAIS_AUTH_TOKEN`); a CLI value prints a warning |
+| `--auth-token-file` | None | File holding the token, read at each run (`SAIS_AUTH_TOKEN_FILE` or a profile) |
 | `--structured-output` | Automatic | Defaults on without `--base-url` and off with it |
 | `--max-turns` | `100` | Maximum agent turns |
-| `--max-tokens` | None | Whole-scan token budget where supported |
+| `--max-tokens` | None | Whole-scan token budget, enforced by the openai engine only (ignored by claude); checked after each tool turn, so the total can overshoot; reaching it records `stopped: budget_exceeded` |
 | `-v/--verbose` | false | Stream agent text to stderr |
 | `--json` | false | Write the Section 4.2 summary to stdout |
 | `--notify-webhook` | None | Completion or error webhook; `SAIS_NOTIFY_WEBHOOK` is also accepted |
 | `--notify-format` | `generic` | `generic`, `discord`, or `slack` |
+
+Connection settings resolve CLI > environment > profile > default. A profile is
+read only when selected; the file is
+`$XDG_CONFIG_HOME/elvez-quality-gate/config.toml` unless `SAIS_CONFIG` names
+another. A token value and a token file are one setting; supplying both at the
+same level is an error.
 
 `findings.json` and `summary.json` are mandatory native artifacts and are
 always published for a completed or incomplete run. `--format` selects the
@@ -306,7 +343,7 @@ additional derived outputs; `json` remains accepted for CLI compatibility.
 
 ### 5.3 Webhook notification
 
-- Notification occurs after a completed run or an execution error.
+- Notification occurs after a completed or incomplete run, or an execution error.
 - A generic webhook receives the published native error summary when available;
   failures before publication use the legacy minimal error object.
 - Discord and Slack messages contain counts and verdict only, never detailed
@@ -352,12 +389,14 @@ The Claude adapter supplies the following child-process environment values:
 | Environment variable | Value | Purpose |
 |---|---|---|
 | `ANTHROPIC_BASE_URL` | `--base-url` | Select the endpoint |
-| `ANTHROPIC_AUTH_TOKEN` | `--auth-token`, default `local` | Authenticate to the local server |
+| `ANTHROPIC_AUTH_TOKEN` | The resolved token (`--auth-token`, token file, environment, or profile), default `local` | Authenticate to the local server |
 | `ANTHROPIC_API_KEY` | Empty | Prevent hosted credentials from taking precedence |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Empty | Prevent hosted credentials from taking precedence |
-| `ANTHROPIC_MODEL` and four model slots | `--model` | Pin all slots to the selected local model |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | Avoid nonessential network traffic |
+| `ANTHROPIC_MODEL` and four model slots | `--model`, only when a model is given | Pin all slots to the selected local model |
 
-A completed or incomplete result requires observed content inspection. In the
+A completed or incomplete result requires observed content inspection, on
+hosted and self-hosted endpoints alike. In the
 OpenAI adapter, a non-empty `read_file` range or a `grep` that actually reads a
 non-empty file qualifies; discovery, failed calls, skipped files, and invalid
 arguments do not. The Claude adapter correlates scoped `Read` or content-mode
@@ -407,10 +446,16 @@ The public API is limited to:
 - `security_ai_scanner.Finding` and `ScanOutput`;
 - `security_ai_scanner.__version__`.
 
+`ScanConfig` accepts `auth_token_file`, but never loads profiles or connection
+environment variables implicitly. Applications that want the CLI's resolution
+opt in with `security_ai_scanner.connection.load_connection_settings(prefix="SAIS",
+target=..., profile=...)` and pass `settings.as_kwargs(target)` to `ScanConfig`.
+
 ## 8. Test strategy
 
 - Unit tests never call a live AI backend; they use mock engines.
-- Live-engine tests carry the `integration` marker and do not run by default.
+- Live-engine tests, when added, carry the `integration` marker (registered in
+  `pyproject.toml`); the default suite contains none.
 - Coverage includes finding normalization, SARIF, reports, orchestration, exit
   codes, schema-version-1 conformance, run identity, digest and byte counts,
   finding counts, atomic publication, and stale-summary invalidation.
@@ -435,7 +480,13 @@ and imported only inside `mcp_server.py`.
 The scan call blocks until completion and reports progress every five seconds.
 Detailed findings are fetched separately to avoid oversized initial responses.
 Results and IDs are process-local. Output is written to a temporary directory,
-never into the scanned repository.
+never into the scanned repository. A failed scan is returned as a tool error.
+
+`sais mcp` accepts `--profile`, `--auth-token-file`, `--engine`, `--base-url`,
+`--model`, and `--auth-token`. The connection is resolved once at server start
+and its file locations are checked again against each scan target. Tool
+arguments cannot choose the connection; restart the server to change the
+profile.
 
 ## 10. Reserved future extensions
 
@@ -452,11 +503,15 @@ README's Shared AI connection settings section. CLI and MCP opt in to that
 resolver; the explicit Python config API does not. Configurations and credential
 files inside the target repository are rejected before use. Credential files
 are read per run, with POSIX group/other read permissions rejected. A CLI token
-value warns without echoing the value. Transport diagnostics omit response
-bodies, and known credentials are redacted. Redirects are refused.
+value warns without echoing the value. Credential files must be regular files,
+not symlinks, of at most 64 KiB. Transport diagnostics omit response bodies.
+Known credentials are redacted from finding text, the scan summary, error
+messages, and verbose output. The openai engine and model discovery refuse
+redirects; the Claude child process and the webhook use their own HTTP clients.
 
-OpenAI model=auto requires exactly one valid /models entry. Reported response
-model changes and discovered IXV beast mode are execution errors (exit 2).
+OpenAI model=auto requires exactly one valid /models entry. For every openai
+request, a reported response `model` that differs from the requested or
+selected ID is an execution error (exit 2), as is discovered IXV beast mode.
 The additive schema-v1 summary extension provenance contains engine,
 model_requested, model (the selected ID), and model_metadata; metadata is limited
 to file basename, positive context_length, and ixv_mode. Model metadata does not

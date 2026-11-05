@@ -2,7 +2,7 @@
 
 [English](spec.md) | [日本語](spec_ja.md)
 
-バージョン: 0.3.0 / 最終更新: 2026-08-25
+バージョン: 0.3.0 / 最終更新: 2026-11-05
 
 本書は security-ai-scanner の技術仕様を定める。ユーザー向けの使い方は
 README を参照のこと。
@@ -24,20 +24,24 @@ LLM エージェントで検出する CLI ツール兼 Python ライブラリで
 - 対象: ローカルファイルシステム上のリポジトリディレクトリ
 - 出力: 構造化所見（JSON）、SARIF 2.1.0、Markdown レポート
 - 現在のスコープ: 単一パスのフルスキャン（`scan` コマンド）
-- 将来スコープ（予約）: パス除外・設定ファイル・差分スキャン・ベースライン、
-  追加エンジン、プロファイル、バッチ、ローカル LLM 運用強化、トリアージ、
-  ベンチ、リリース成熟度、修正提案（詳細は README ロードマップと Issue #3–#13）
+- 将来スコープ（予約）: パス除外・リポジトリの設定ファイル・差分スキャン・ベースライン、
+  スキャン（手法）プロファイル、バッチ、ローカル LLM 運用強化、トリアージ、
+  ベンチ、リリース成熟度、修正提案（詳細は README ロードマップと Issue #3–#13）。
+  2つ目のエンジン（`openai`）とマシン側の接続プロファイルは実装済み。
+  スキャンプロファイルはこれとは別の機能（#8）
 
 ## 2. アーキテクチャ
 
 ```
 cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バックエンド
               │
+              ├─▶ connection.py 接続プロファイルと鍵
               ├─▶ prepass.py エンジン前の決定論検査
               ├─▶ prompts/   スキャン手法（システムプロンプト）
               ├─▶ findings.py 所見スキーマ・検証
               ├─▶ sarif.py    SARIF 出力
-              └─▶ report.py   Markdown レポート
+              ├─▶ report.py   Markdown レポート
+              └─▶ native.py / publication.py  run identity と成果物の確定
 ```
 
 ### 2.1 レイヤ責務
@@ -51,9 +55,15 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 | `prepass.py` | エンジン前の決定論検査（所見・候補・死角） | なし |
 | `sarif.py` | SARIF 2.1.0 変換 | なし |
 | `report.py` | Markdown レポート生成（en/ja） | なし |
+| `native.py` | schema version 1 の run identity と subject の解決（§4.3） | なし |
+| `publication.py` | 出力 lock と成果物の atomic な確定（§4.2） | なし |
+| `connection.py` | マシン側の接続プロファイル、鍵ファイル、秘密情報の伏せ字、`model = "auto"`（共通接続設定の契約） | なし |
+| `notify.py` | webhook 通知（§5.3） | なし |
+| `mcp_server.py` | MCP サーバー（§9）。`mcp` の import はここだけ | なし |
 | `prompts/` | スキャン手法テキスト（バックエンド中立） | なし |
 | `engine/base.py` | `ScanEngine` 抽象、`ScanRequest`/`EngineResult`、レジストリ | なし |
-| `engine/claude.py` | Claude Agent SDK 実装 | あり（唯一） |
+| `engine/completion.py` | OpenAI 互換の応答の完了状態の検査（§5.1） | なし |
+| `engine/<name>.py` | バックエンドのアダプタ（`claude`、`openai`） | あり（ここに閉じる） |
 
 **不変条件**: エンジン SDK の import は `engine/<name>.py` の中に閉じる。
 
@@ -62,14 +72,18 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 エンジンは `ScanRequest` を受け取り `EngineResult` を返す。
 
 - 入力: `prompt`（ユーザープロンプト）、`system_prompt`、`cwd`（対象ルート）、
-  `output_schema`（所見 JSON Schema）、`model`、`max_turns`、`verbose`、
-  `base_url`・`auth_token`（自社ホストのエンドポイント）、`structured_output`
+  `output_schema`（所見 JSON Schema）、`model`、`max_turns`、`max_total_tokens`
+  （スキャン全体のトークン予算）、`verbose`、`base_url`・`auth_token`
+  （自社ホストのエンドポイント）、`structured_output`、伏せるべき既知の秘密情報
 - 出力: `structured_output`（スキーマ準拠オブジェクト。最優先）、`text`
-  （フォールバック解析用）、`is_error`、`num_turns`、`duration_ms`、
-  `total_tokens`・`total_cost_usd`（取得可能な場合）、部分終了理由
+  （フォールバック解析用）、`is_error` とエラーメッセージ、`num_turns`、`duration_ms`、
+  `total_tokens`・`total_cost_usd`（取得可能な場合）、部分終了理由、
+  内容を検査した件数（§5.2）、モデルの来歴（共通接続設定の契約）。
+  最後の2つは `summary.json` に書く
 - エンジンは対象ディレクトリに対して**読み取り専用**でエージェントを実行する
   こと。claude エンジンでは allowed_tools = Read/Glob/Grep、
   disallowed_tools = Bash/Write/Edit/NotebookEdit/WebFetch/WebSearch。
+  openai エンジンは、同等の読み取り専用ツールを Python で実装する。
 
 ## 3. 所見スキーマ
 
@@ -169,6 +183,13 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
   "cost_usd": 1.23,
   "total_tokens": 45678,
   "stopped": null,
+  "provenance": {
+    "engine": "claude",
+    "model_requested": null,
+    "model": null,
+    "model_metadata": {}
+  },
+  "successful_inspections": 31,
   "prepass": {
     "files_scanned": 120,
     "deterministic_findings": 0,
@@ -194,10 +215,12 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
   含む）ではsummaryを確定せず、既存成果物も変更しない
 - `exit_code`は0（local gate pass）、1（local gate fail）、2（execution error）の
   意味を維持する。incompleteの0または1は完全性を証明しない
-- `cost_usd` は `--base-url` 指定時（自社ホスト）は課金が発生しないため `null`
-- `total_tokens` はエンジンが使用量を計上できる場合の総トークン数
-  （openai エンジン）。計上できないエンジンでは `null`
-- `stopped` は早期終了の理由（`"budget_exceeded"` / `"max_turns"`）。
+- `cost_usd` は `--base-url` 指定時（自社ホスト）は、エンジンが金額を報告しても
+  課金が発生しないため `null`。エンジンが計上できない場合も `null`
+- `total_tokens` は、openai エンジンではサーバーが返した `usage` だけを数える
+  （サーバーが返さなければ0）
+- `stopped` は早期終了の理由（`"budget_exceeded"` / `"max_turns"`。claude エンジンでは
+  `"max_budget_usd"` や SDK のほかの終了理由もありうる）。
   通常完了時は `null`。未知の将来の値を含め、非 null は部分的な出力を意味し、
   したがって `status: incomplete` とする
 - engineのerror flagは、他のoutputが存在しても常にexecution errorとする。
@@ -226,13 +249,16 @@ cli.py ──▶ runner.py ──▶ engine/ (アダプタ層) ──▶ AI バ�
 - `prepass`は決定論プリパス（§6.1）の結果を記録する。読んだファイル数、決定論所見数、
   候補数とそのうちプロンプトに渡した数、死角（最大200件を列挙し、
   `blind_spots_total`と`blind_spots_truncated`を併記）。error summaryには含めない
+- `provenance`はエンジンとモデル（共通接続設定の契約）、`successful_inspections`は
+  内容を検査した操作の件数（§5.2）を記録する。completedとincompleteのrunに入り、
+  error summaryには含めない
 
 ### 4.1 SARIF マッピング
 
 - `ruleId` = 所見の CWE（無ければ `SAIS-GENERIC`）
 - `level`: critical/high → `error`、medium → `warning`、low/info → `note`
-- ルールの `properties["security-severity"]`: critical 9.5 / high 8.0 /
-  medium 5.0 / low 3.0 / info 0.0（GitHub の重大度スケール）
+- ルールの `properties["security-severity"]`: critical `"9.5"` / high `"8.0"` /
+  medium `"5.0"` / low `"3.0"` / info `"0.0"`（数値の文字列。GitHub の重大度スケール）
 - ファイルパスは `uriBaseId: SRCROOT`（スキャン対象ルート）基準
 - ツール固有情報（severity・confidence・title）は result の
   `properties`、所見 ID は `partialFingerprints["sais/id"]` に格納
@@ -257,7 +283,8 @@ objectを記録する。
   解決する
 - `dirty`は、scan対象ルート配下の内容が`HEAD`と異なる場合に`true`とする:
   未コミットの変更があるtracked file、またはuntracked file。scannerは
-  working treeを読むため、untrackedの内容も解析に寄与し、dirtyに数える
+  working treeを読むため、untrackedの内容も解析に寄与し、dirtyに数える。
+  gitignoreされたファイルも解析するが、`dirty`を`true`にはしない
 - `content_digest`は`null`とする。フルリポジトリスキャンには決定論的な
   内容正規化を定義せず、共通仕様はdigestの捏造を禁じている
 
@@ -271,21 +298,28 @@ sais scan TARGET [options]        # 短縮エイリアス
 | オプション | 既定値 | 説明 |
 |---|---|---|
 | `-o/--output-dir` | `./security-scan-results` | 出力ディレクトリ |
-| `--engine` | `claude` | エンジン名（レジストリ検索）。`claude` / `openai` |
-| `--model` | なし | エンジンへのモデル指定（環境変数 `SAIS_MODEL` でも可）。`openai` エンジンでは必須 |
+| `--profile` | `SAIS_PROFILE` | マシン側の接続プロファイル（共通接続設定の契約） |
+| `--engine` | `claude` | エンジン名（レジストリ検索）。`claude` / `openai`。`SAIS_ENGINE` やプロファイルでも可 |
+| `--model` | なし | エンジンへのモデル指定（`SAIS_MODEL` やプロファイルでも可）。`openai` エンジンでは必須。`auto` で `GET /models` が示す1つのモデルを使う（openai のみ） |
 | `--language` | `en` | `en` / `ja` |
 | `--context` | なし | 追加コンテキスト（信頼できない入力として扱う） |
 | `--fail-on` | `high` | CI ゲートしきい値。`none` で無効化 |
 | `--format` | 全形式 | `json`/`sarif`/`markdown`。繰り返し指定可 |
-| `--base-url` | なし | 自社ホストのエンドポイント。`claude` は Anthropic 互換 / `openai` は OpenAI 互換 |
-| `--auth-token` | なし | `--base-url` 用の認証トークン |
+| `--base-url` | なし | 自社ホストのエンドポイント。`claude` は Anthropic 互換 / `openai` は OpenAI 互換。`SAIS_BASE_URL` やプロファイルでも可 |
+| `--auth-token` | なし | `--base-url` 用の認証トークン（`SAIS_AUTH_TOKEN`）。CLI で値を渡すと警告を出す |
+| `--auth-token-file` | なし | トークンを書いたファイル。実行ごとに読む（`SAIS_AUTH_TOKEN_FILE` やプロファイルでも可） |
 | `--structured-output` | 自動 | 構造化出力の強制切替。既定は `--base-url` 無指定時 on / 指定時 off |
 | `--max-turns` | `100` | エージェント最大ターン数 |
-| `--max-tokens` | なし | スキャン全体のトークン予算。到達時は部分所見で早期終了し `stopped: budget_exceeded` を記録（openai エンジンが強制。claude エンジンは使用量を逐次計上できないため未対応） |
+| `--max-tokens` | なし | スキャン全体のトークン予算。到達時は部分所見で早期終了し `stopped: budget_exceeded` を記録（openai エンジンだけが強制し、claude エンジンは無視する。ツールを使う各ターンの後に確認するため、合計が予算を超えることがある） |
 | `-v/--verbose` | false | エージェントのテキストを stderr に流す |
 | `--json` | false | 人向けサマリの代わりに §4.2 のサマリ JSON を stdout に出力（エージェント・スクリプト向け） |
 | `--notify-webhook` | なし | 完了・失敗時にサマリを POST する webhook URL（`SAIS_NOTIFY_WEBHOOK` でも指定可） |
 | `--notify-format` | `generic` | `generic`（サマリ JSON）/ `discord` / `slack`（incoming webhook 形式） |
+
+接続設定は CLI ＞ 環境変数 ＞ プロファイル ＞ 既定値の順に決まる。プロファイルは
+選んだときだけ読み、ファイルは`SAIS_CONFIG`で別に指定しない限り
+`$XDG_CONFIG_HOME/elvez-quality-gate/config.toml`とする。トークンの値とトークンの
+ファイルは1つの設定として扱い、同じ段で両方を指定するとエラーとする。
 
 `findings.json`と`summary.json`は必須native artifactであり、completedまたは
 incompleteのrunでは常に公開する。`--format`は追加の派生成果物を選択し、
@@ -293,8 +327,8 @@ CLI互換性のため`json`も引き続き受け付ける。
 
 ### 5.3 Webhook 通知
 
-- 送信タイミングは2つ：スキャン完了時（§4.2 サマリ＋`status: completed`）と
-  スキャン失敗時（`status: error`＋エラーメッセージ）
+- 送信タイミングは、スキャンの完了時（§4.2 サマリ。`status` は `completed` または
+  `incomplete`）と失敗時（`status: error`＋エラーメッセージ）
 - generic webhookは、確定済みnative error summaryがある場合はそのobjectを送り、
   確定前の失敗では従来の最小error objectを送る
 - `discord`/`slack` 形式は件数と判定のみの1行テキスト。**所見の詳細
@@ -311,7 +345,7 @@ CLI互換性のため`json`も引き続き受け付ける。
 |---|---|
 | 0 | スキャン完了。しきい値以上の所見なし |
 | 1 | スキャン完了。しきい値以上の所見あり（CI ゲート） |
-| 2 | エラー（引数不正・対象不在・エンジン失敗・解析失敗） |
+| 2 | エラー（引数不正・対象不在・エンジン失敗・解析失敗・成果物の確定の失敗・その他の実行エラー） |
 
 `quality-keeper`を最終CI gateとして使う場合、標準運用は`sais scan ... --fail-on none`
 とする。このmodeでも所見とlocal gate情報は記録するが、所見による終了コード1を
@@ -340,15 +374,17 @@ function calling）に直接接続する。ツール（read_file / glob / grep�
 | 環境変数 | 値 | 理由 |
 |---|---|---|
 | `ANTHROPIC_BASE_URL` | `--base-url` | 接続先の切り替え |
-| `ANTHROPIC_AUTH_TOKEN` | `--auth-token`（既定 `local`） | ローカルサーバーの認証 |
+| `ANTHROPIC_AUTH_TOKEN` | 解決したトークン（`--auth-token`、トークンファイル、環境変数、プロファイル。既定 `local`） | ローカルサーバーの認証 |
 | `ANTHROPIC_API_KEY` | 空文字 | ホスト型認証情報が優先されるのを防ぐ |
 | `CLAUDE_CODE_OAUTH_TOKEN` | 空文字 | 同上 |
-| `ANTHROPIC_MODEL` ほか4スロット | `--model` | ローカルは単一モデル提供が通常のため全スロットを固定 |
+| `CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC` | `1` | 必須でない通信を止める |
+| `ANTHROPIC_MODEL` ほか4スロット | `--model`（指定したときだけ） | ローカルは単一モデル提供が通常のため全スロットを固定 |
 
 構造化出力は `--base-url` 指定時に既定でオフとなり、ユーザープロンプトへ
 JSON 出力指示を付加した上で `parse_text_output()` で解析する。
 
-completedまたはincompleteの結果を受理するには、内容を検査した実績を必要とする。
+completedまたはincompleteの結果を受理するには、ホスト型・自社ホストを問わず、
+内容を検査した実績を必要とする。
 OpenAIアダプターでは、空でない範囲の`read_file`、または空でないファイルを実際に読む
 `grep`を計上する。ファイル一覧の取得、失敗、スキップ、不正な引数は計上しない。
 Claudeアダプターでは、対象内の`Read`またはcontentモードの`Grep`呼び出しを、
@@ -396,11 +432,16 @@ Claudeアダプターでは、対象内の`Read`またはcontentモードの`Gre
 - `security_ai_scanner.Finding` / `ScanOutput`
 - `security_ai_scanner.__version__`
 
+`ScanConfig`は`auth_token_file`を受け付けるが、プロファイルや接続の環境変数を暗黙には
+読まない。CLIと同じ解決を使うアプリケーションは、
+`security_ai_scanner.connection.load_connection_settings(prefix="SAIS", target=..., profile=...)`
+を明示的に呼び、`settings.as_kwargs(target)`を`ScanConfig`に渡す。
+
 ## 8. テスト方針
 
 - ユニットテストは AI バックエンドを呼ばない（モックエンジンを使用）
-- 実エンジンを使う統合テストは `integration` マーカーを付け、既定では
-  実行しない
+- 実エンジンを使う統合テストを追加する場合は `integration` マーカー
+  （`pyproject.toml` に登録済み）を付ける。既定のテストには含まれていない
 - カバレッジ対象: 所見の検証・正規化、SARIF 変換、レポート生成、
   オーケストレーション、CLI の終了コード、schema version 1適合、run identity、
   hash・byte数・件数、atomic publication、古いsummaryの無効化
@@ -429,11 +470,16 @@ import は `mcp_server.py` に閉じる（エンジン SDK と同じ不変条件
 - 結果はサーバープロセス内のみに保持（`scan_id` 採番はプロセスローカル）
 - 出力ファイルは一時ディレクトリに書く。**スキャン対象リポジトリ内には
   書き込まない**
+- スキャンの失敗はツールのエラーとして返す
+- `sais mcp` は `--profile`、`--auth-token-file`、`--engine`、`--base-url`、
+  `--model`、`--auth-token` を受け付ける。接続設定はサーバー起動時に1回だけ解決し、
+  ファイルの場所はスキャン対象ごとに確かめ直す。ツールの引数では接続先を選べない。
+  プロファイルを変えるにはサーバーを再起動する
 
 ## 10. 将来拡張（設計上の予約）
 
 - `batch`: 複数リポジトリの直列スキャンと集計（`batch-summary.json`）。
-  v0.2.x 時点では未実装。単発 `scan` をシェルループで回すことで代替できる
+  未実装。単発 `scan` をシェルループで回すことで代替できる
 - `diff-scan`: PR・コミット差分に限定したスキャン
 - `triage`: 既存所見の再評価・誤検出フィードバック
 - `fix`: 所見に対する修正パッチ提案
@@ -446,10 +492,14 @@ import は `mcp_server.py` に閉じる（エンジン SDK と同じ不変条件
 CLI・MCPは明示的にresolverを使い、Pythonの明示config APIは暗黙に読み込まない。
 対象リポジトリ内の設定・鍵ファイルは利用前に拒否する。鍵は実行ごとに読み、POSIXでは
 group/otherの読み取り権限を拒否する。CLIの鍵直接指定は値を表示せず警告する。
-通信エラーの本文は表示せず、既知の鍵を伏せる。リダイレクトは拒否する。
+鍵ファイルは、シンボリックリンクでない通常のファイルで、64 KiB 以下とする。
+通信エラーの本文は表示しない。既知の鍵は、所見の文章、スキャンのサマリ、
+エラーメッセージ、詳細出力から伏せる。openai エンジンとモデルの探索はリダイレクトを
+拒否する。Claude の子プロセスと webhook は、それぞれ自身の HTTP クライアントを使う。
 
-OpenAIのmodel=autoは有効な/modelsエントリが1つの場合だけ採用する。応答で報告された
-モデルの変化や、discoveryで検出したIXV beast modeは実行エラー（終了コード2）とする。
+OpenAIのmodel=autoは有効な/modelsエントリが1つの場合だけ採用する。openai エンジンの
+すべての要求で、応答が報告した`model`が指定または選択したIDと異なる場合と、
+discoveryで検出したIXV beast modeは、実行エラー（終了コード2）とする。
 schema-v1のsummaryに追加するprovenanceは、engine、model_requested、model（選択ID）、
 model_metadataを持つ。metadataはfileのファイル名、正のcontext_length、ixv_modeだけに限定し、
 予算を暗黙には変更しない。Claudeは指定モデルを記録し、SDKの既定に任せる場合はnullとする。
